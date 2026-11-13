@@ -22,6 +22,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByUsername(String username);
+
     @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.profile.phone = :phone")
     boolean existsByPhone(@Param("phone") String phone);
+
+    @Query("SELECT DISTINCT u FROM User u JOIN u.roles r WHERE r = :role")
+    List<User> findByRole(@Param("role") Role role);
+
+    @Query("SELECT DISTINCT u FROM User u JOIN u.roles r WHERE r != com.ryan.logisticexpress.user.enums.Role.ROLE_SHOP")
+    List<User> findAllStaff();
 }

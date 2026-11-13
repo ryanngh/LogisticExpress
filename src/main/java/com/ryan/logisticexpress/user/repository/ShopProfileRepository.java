@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface ShopProfileRepository extends JpaRepository<ShopProfile, UUID> {
     Optional<ShopProfile> findByShopName(String shopName);
+    boolean existsByShopName(String shopName);
 }
