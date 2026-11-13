@@ -6,7 +6,10 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -24,15 +27,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    @Getter
+    private final String cookieName;
 
-    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+    @Autowired
+    public JwtAuthenticationFilter(
+            JwtService jwtService,
+            CustomUserDetailsService userDetailsService,
+            @Value("${jwt.cookie-name:ACCESS_TOKEN}") String cookieName
+    ) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.cookieName = StringUtils.hasText(cookieName) ? cookieName : "ACCESS_TOKEN";
+    }
+
+    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+        this(jwtService, userDetailsService, "ACCESS_TOKEN");
     }
 
     // Fallback no-arg constructor for lightweight test mocks
     public JwtAuthenticationFilter() {
-        this(null, null);
+        this(null, null, "ACCESS_TOKEN");
     }
 
     @Override
@@ -71,7 +86,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
-                if ("ACCESS_TOKEN".equals(cookie.getName()) && StringUtils.hasText(cookie.getValue())) {
+                if (cookieName.equals(cookie.getName()) && StringUtils.hasText(cookie.getValue())) {
                     return cookie.getValue();
                 }
             }

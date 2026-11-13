@@ -4,6 +4,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.Getter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -20,16 +22,38 @@ import java.util.function.Function;
 public class JwtService {
 
     private final String secret;
+    @Getter
     private final long expirationMs;
+    @Getter
+    private final long refreshExpirationMs;
+    @Getter
+    private final String cookieName;
+    @Getter
+    private final String refreshCookieName;
     private final SecretKey signingKey;
 
+    @Autowired
     public JwtService(
             @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}") String secret,
-            @Value("${jwt.expiration-ms:86400000}") long expirationMs
+            @Value("${jwt.expiration-ms:86400000}") long expirationMs,
+            @Value("${jwt.refresh-token.expiration-ms:${jwt.refresh-expiration-ms:604800000}}") long refreshExpirationMs,
+            @Value("${jwt.cookie-name:ACCESS_TOKEN}") String cookieName,
+            @Value("${jwt.refresh-token.cookie-name:${jwt.refresh-cookie-name:REFRESH_TOKEN}}") String refreshCookieName
     ) {
         this.secret = secret;
         this.expirationMs = expirationMs;
+        this.refreshExpirationMs = refreshExpirationMs;
+        this.cookieName = cookieName;
+        this.refreshCookieName = refreshCookieName;
         this.signingKey = initSigningKey(secret);
+    }
+
+    public JwtService(String secret, long expirationMs) {
+        this(secret, expirationMs, 604800000L, "ACCESS_TOKEN", "REFRESH_TOKEN");
+    }
+
+    public JwtService(String secret, long expirationMs, long refreshExpirationMs) {
+        this(secret, expirationMs, refreshExpirationMs, "ACCESS_TOKEN", "REFRESH_TOKEN");
     }
 
     private SecretKey initSigningKey(String secret) {
@@ -60,6 +84,7 @@ public class JwtService {
                 .map(GrantedAuthority::getAuthority)
                 .toList();
         claims.put("roles", roles);
+        claims.put("token_type", "ACCESS");
 
         long now = System.currentTimeMillis();
         return Jwts.builder()
@@ -67,6 +92,30 @@ public class JwtService {
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + expirationMs))
+                .signWith(signingKey)
+                .compact();
+    }
+
+    public String generateRefreshToken(UserDetails userDetails) {
+        return generateRefreshToken(Map.of(), userDetails);
+    }
+
+    public String generateRefreshToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>(extraClaims);
+        if (userDetails instanceof CustomUserDetails customUserDetails) {
+            if (customUserDetails.getId() != null) {
+                claims.put("uid", customUserDetails.getId().toString());
+            }
+            claims.put("token_version", customUserDetails.getTokenVersion());
+        }
+        claims.put("token_type", "REFRESH");
+
+        long now = System.currentTimeMillis();
+        return Jwts.builder()
+                .claims(claims)
+                .subject(userDetails.getUsername())
+                .issuedAt(new Date(now))
+                .expiration(new Date(now + refreshExpirationMs))
                 .signWith(signingKey)
                 .compact();
     }
@@ -82,6 +131,10 @@ public class JwtService {
 
     public Integer extractTokenVersion(String token) {
         return extractClaim(token, claims -> claims.get("token_version", Integer.class));
+    }
+
+    public String extractTokenType(String token) {
+        return extractClaim(token, claims -> claims.get("token_type", String.class));
     }
 
     @SuppressWarnings("unchecked")
