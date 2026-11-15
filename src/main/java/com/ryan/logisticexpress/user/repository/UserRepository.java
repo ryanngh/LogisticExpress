@@ -2,7 +2,7 @@ package com.ryan.logisticexpress.user.repository;
 
 import com.ryan.logisticexpress.user.entity.User;
 import com.ryan.logisticexpress.user.enums.Role;
-import com.ryan.logisticexpress.user.enums.Status;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -32,4 +32,21 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT DISTINCT u FROM User u JOIN u.roles r WHERE r != com.ryan.logisticexpress.user.enums.Role.ROLE_SHOP")
     List<User> findAllStaff();
+
+    @EntityGraph(attributePaths = {"roles", "credential", "profile", "shopProfile"})
+    @Query("""
+            SELECT u FROM User u
+            LEFT JOIN u.profile p
+            WHERE u.username = :lowerIdentifier
+               OR u.email = :lowerIdentifier
+               OR p.phone = :rawIdentifier
+            """)
+    Optional<User> findByIdentifierWithDetails(
+            @Param("lowerIdentifier") String lowerIdentifier,
+            @Param("rawIdentifier") String rawIdentifier
+    );
+
+    @EntityGraph(attributePaths = {"roles", "credential", "profile", "shopProfile"})
+    @Query("SELECT u FROM User u WHERE u.id = :id")
+    Optional<User> findByIdWithDetails(@Param("id") UUID id);
 }
