@@ -35,16 +35,20 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/",
-                                "/login",
-                                "/register",
                                 "/track/**",
                                 "/api/public/**",
+                                "/api/auth/login",
+                                "/api/auth/register",
+                                "/api/auth/refresh",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
                                 "/css/**",
                                 "/js/**",
                                 "/images/**",
                                 "/favicon.ico",
                                 "/webjars/**"
                         ).permitAll()
+                        .requestMatchers("/api/auth/change-password").authenticated()
                         .requestMatchers("/shop/**", "/api/shop/**").hasRole("SHOP")
                         .requestMatchers("/shipper/**", "/api/shipper/**").hasRole("SHIPPER")
                         .requestMatchers("/ops/**", "/api/ops/**").hasAnyRole(
