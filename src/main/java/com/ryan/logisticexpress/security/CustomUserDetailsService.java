@@ -23,9 +23,7 @@ public class CustomUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("Identifier cannot be empty");
         }
         String trimmed = identifier.trim().toLowerCase();
-        User user = userRepository.findByUsername(trimmed)
-                .or(() -> userRepository.findByEmail(trimmed))
-                .or(() -> userRepository.findByPhone(identifier.trim()))
+        User user = userRepository.findByIdentifierWithDetails(trimmed, identifier.trim())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + identifier));
 
         return new CustomUserDetails(user);
@@ -33,7 +31,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Transactional(readOnly = true)
     public CustomUserDetails loadUserById(UUID id) throws UsernameNotFoundException {
-        return userRepository.findById(id)
+        return userRepository.findByIdWithDetails(id)
                 .map(CustomUserDetails::new)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + id));
     }
