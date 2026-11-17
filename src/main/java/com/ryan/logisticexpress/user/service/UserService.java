@@ -4,6 +4,7 @@ import com.ryan.logisticexpress.common.exception.BadRequestException;
 import com.ryan.logisticexpress.common.exception.ConflictException;
 import com.ryan.logisticexpress.common.exception.ForbiddenException;
 import com.ryan.logisticexpress.common.exception.ResourceNotFoundException;
+import com.ryan.logisticexpress.security.CustomUserDetailsService;
 import com.ryan.logisticexpress.user.dto.*;
 import com.ryan.logisticexpress.user.entity.ShopProfile;
 import com.ryan.logisticexpress.user.entity.User;
@@ -13,7 +14,7 @@ import com.ryan.logisticexpress.user.enums.Role;
 import com.ryan.logisticexpress.user.enums.Status;
 import com.ryan.logisticexpress.user.repository.ShopProfileRepository;
 import com.ryan.logisticexpress.user.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +23,33 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
     private final ShopProfileRepository shopProfileRepository;
     private final PasswordEncoder passwordEncoder;
+    private final CustomUserDetailsService userDetailsService;
+
+    @Autowired
+    public UserService(
+            UserRepository userRepository,
+            ShopProfileRepository shopProfileRepository,
+            PasswordEncoder passwordEncoder,
+            @Autowired(required = false) CustomUserDetailsService userDetailsService
+    ) {
+        this.userRepository = userRepository;
+        this.shopProfileRepository = shopProfileRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.userDetailsService = userDetailsService;
+    }
+
+    public UserService(
+            UserRepository userRepository,
+            ShopProfileRepository shopProfileRepository,
+            PasswordEncoder passwordEncoder
+    ) {
+        this(userRepository, shopProfileRepository, passwordEncoder, null);
+    }
 
     @Transactional(readOnly = true)
     public UserProfileResponse getMyProfile(UUID currentUserId) {
@@ -189,18 +211,24 @@ public class UserService {
         profile.setPhone(phone);
 
         if (request.roles() != null && !request.roles().isEmpty()) {
+            if (!request.roles().equals(user.getRoles())) {
+                user.incrementTokenVersion();
+            }
             user.setRoles(request.roles());
         }
 
         if (request.status() != null) {
             user.setStatus(request.status());
-            // Invalidate active JWTs when account is disabled
             if (request.status() == Status.DISABLED) {
                 user.incrementTokenVersion();
             }
         }
 
-        return StaffResponse.from(userRepository.save(user));
+        User saved = userRepository.save(user);
+        if (userDetailsService != null) {
+            userDetailsService.evictUserAuthState(saved.getId());
+        }
+        return StaffResponse.from(saved);
     }
 
     @Transactional
@@ -210,6 +238,9 @@ public class UserService {
         user.setStatus(Status.DISABLED);
         user.incrementTokenVersion();
         userRepository.save(user);
+        if (userDetailsService != null) {
+            userDetailsService.evictUserAuthState(user.getId());
+        }
     }
 
     private User findUserById(UUID id) {

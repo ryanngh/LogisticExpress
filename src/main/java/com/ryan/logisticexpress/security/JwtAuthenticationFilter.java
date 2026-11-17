@@ -14,16 +14,22 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.UUID;
 
 @Component
 @Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    public static final String AUTH_SOURCE_BEARER = "BEARER";
+    public static final String AUTH_SOURCE_COOKIE = "COOKIE";
+
+    public record ResolvedToken(String token, String source) {}
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
@@ -53,22 +59,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        String token = resolveToken(request);
+        if (hasQueryTokenParameter(request)) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token in URL query parameter is forbidden");
+            return;
+        }
 
-        if (StringUtils.hasText(token) && jwtService != null && userDetailsService != null
+        ResolvedToken resolved = resolveTokenWithSource(request);
+
+        if (resolved != null && StringUtils.hasText(resolved.token()) && jwtService != null && userDetailsService != null
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
+            String token = resolved.token();
             try {
-                String username = jwtService.extractUsername(token);
-                if (StringUtils.hasText(username)) {
-                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                    if (jwtService.isTokenValid(token, userDetails)) {
-                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
-                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                String tokenType = jwtService.extractTokenType(token);
+                if (tokenType == null || "ACCESS".equals(tokenType)) {
+                    String username = jwtService.extractUsername(token);
+                    UUID userId = jwtService.extractUserId(token);
+                    List<String> roles = jwtService.extractRoles(token);
+                    if (StringUtils.hasText(username)) {
+                        UserDetails userDetails = userDetailsService.loadUserForJwt(userId, username, roles);
+                        if (userDetails.isEnabled() && userDetails.isAccountNonLocked()
+                                && jwtService.isTokenValid(token, userDetails)) {
+                            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
+                            authToken.setDetails(resolved.source());
+                            SecurityContextHolder.getContext().setAuthentication(authToken);
+                        }
                     }
                 }
             } catch (JwtException | UsernameNotFoundException | IllegalArgumentException ex) {
@@ -80,18 +98,36 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     public String resolveToken(HttpServletRequest request) {
+        ResolvedToken resolved = resolveTokenWithSource(request);
+        return resolved != null ? resolved.token() : null;
+    }
+
+    public ResolvedToken resolveTokenWithSource(HttpServletRequest request) {
+        if (hasQueryTokenParameter(request)) {
+            return null;
+        }
         String bearer = request.getHeader("Authorization");
         if (StringUtils.hasText(bearer) && bearer.startsWith("Bearer ")) {
-            return bearer.substring(7);
+            String value = bearer.substring(7).trim();
+            return StringUtils.hasText(value) ? new ResolvedToken(value, AUTH_SOURCE_BEARER) : null;
         }
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
                 if (cookieName.equals(cookie.getName()) && StringUtils.hasText(cookie.getValue())) {
-                    return cookie.getValue();
+                    return new ResolvedToken(cookie.getValue().trim(), AUTH_SOURCE_COOKIE);
                 }
             }
         }
-        String param = request.getParameter("token");
-        return StringUtils.hasText(param) ? param : null;
+        return null;
+    }
+
+    private boolean hasQueryTokenParameter(HttpServletRequest request) {
+        String query = request.getQueryString();
+        if (StringUtils.hasText(query) && (query.startsWith("token=") || query.contains("&token="))) {
+            return true;
+        }
+        String contentType = request.getContentType();
+        boolean isJsonOrNoBody = contentType == null || contentType.contains("application/json");
+        return isJsonOrNoBody && request.getParameter("token") != null;
     }
 }
