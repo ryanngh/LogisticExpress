@@ -12,6 +12,7 @@ import com.ryan.logisticexpress.common.exception.BadRequestException;
 import com.ryan.logisticexpress.common.exception.ForbiddenException;
 import com.ryan.logisticexpress.common.exception.ResourceNotFoundException;
 import com.ryan.logisticexpress.security.CustomUserDetails;
+import com.ryan.logisticexpress.security.CustomUserDetailsService;
 import com.ryan.logisticexpress.security.JwtService;
 import com.ryan.logisticexpress.user.entity.ShopProfile;
 import com.ryan.logisticexpress.user.entity.User;
@@ -21,8 +22,10 @@ import com.ryan.logisticexpress.user.enums.Role;
 import com.ryan.logisticexpress.user.enums.Status;
 import com.ryan.logisticexpress.user.repository.ShopProfileRepository;
 import com.ryan.logisticexpress.user.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,7 +42,6 @@ import java.time.Instant;
 import java.util.*;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class AuthService {
 
@@ -49,6 +51,41 @@ public class AuthService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final CustomUserDetailsService userDetailsService;
+    @Setter
+    private boolean cookieSecure;
+
+    @Autowired
+    public AuthService(
+            UserRepository userRepository,
+            ShopProfileRepository shopProfileRepository,
+            UserSessionRepository userSessionRepository,
+            VerificationTokenRepository verificationTokenRepository,
+            PasswordEncoder passwordEncoder,
+            JwtService jwtService,
+            @Autowired(required = false) CustomUserDetailsService userDetailsService,
+            @Value("${app.cookie.secure:false}") boolean cookieSecure
+    ) {
+        this.userRepository = userRepository;
+        this.shopProfileRepository = shopProfileRepository;
+        this.userSessionRepository = userSessionRepository;
+        this.verificationTokenRepository = verificationTokenRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+        this.userDetailsService = userDetailsService;
+        this.cookieSecure = cookieSecure;
+    }
+
+    public AuthService(
+            UserRepository userRepository,
+            ShopProfileRepository shopProfileRepository,
+            UserSessionRepository userSessionRepository,
+            VerificationTokenRepository verificationTokenRepository,
+            PasswordEncoder passwordEncoder,
+            JwtService jwtService
+    ) {
+        this(userRepository, shopProfileRepository, userSessionRepository, verificationTokenRepository, passwordEncoder, jwtService, null, false);
+    }
 
     // Register a new shop and its owner profile
     @Transactional
@@ -105,7 +142,7 @@ public class AuthService {
     }
 
     // Authenticate user credentials and create a session
-    @Transactional
+    @Transactional(noRollbackFor = InvalidCredentialsException.class)
     public TokenResponse login(LoginRequest request, String ipAddress, String userAgent) {
         String identifier = request.usernameOrEmail().trim();
 
@@ -128,12 +165,18 @@ public class AuthService {
         if (!passwordEncoder.matches(request.password(), credential.getPasswordHash())) {
             credential.recordFailedLogin(5, 900);
             userRepository.save(user);
+            if (credential.isAccountLocked()) {
+                evictUserCache(user.getId());
+            }
             throw new InvalidCredentialsException("Invalid credentials");
         }
 
         credential.resetFailedLogin();
         user.recordLogin();
         userRepository.save(user);
+        if (userDetailsService != null) {
+            userDetailsService.cacheUserAuthState(user);
+        }
 
         return createSessionAndGenerateTokens(user, ipAddress, userAgent);
     }
@@ -151,7 +194,7 @@ public class AuthService {
     }
 
     // Rotate refresh token and issue a new access token
-    @Transactional
+    @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
     public TokenResponse refreshToken(String refreshToken, String ipAddress, String userAgent) {
         if (!StringUtils.hasText(refreshToken)) {
             throw new InvalidRefreshTokenException("Refresh token is required");
@@ -263,6 +306,7 @@ public class AuthService {
         user.incrementTokenVersion();
         userSessionRepository.revokeAllForUser(user.getId(), UserSession.REASON_PASSWORD_CHANGED, Instant.now());
         userRepository.save(user);
+        evictUserCache(user.getId());
     }
 
     // Change password with old password verification
@@ -283,26 +327,59 @@ public class AuthService {
         user.incrementTokenVersion();
         userSessionRepository.revokeAllForUser(user.getId(), UserSession.REASON_PASSWORD_CHANGED, Instant.now());
         userRepository.save(user);
+        evictUserCache(user.getId());
     }
 
     public ResponseCookie createAuthCookie(String token) {
-        return ResponseCookie.from("ACCESS_TOKEN", token)
+        String cookieName = StringUtils.hasText(jwtService.getCookieName()) ? jwtService.getCookieName() : "ACCESS_TOKEN";
+        long maxAgeMs = jwtService.getExpirationMs() > 0 ? jwtService.getExpirationMs() : 900000L;
+        return ResponseCookie.from(cookieName, token != null ? token : "")
                 .httpOnly(true)
-                .secure(false)
+                .secure(cookieSecure)
                 .path("/")
-                .maxAge(Duration.ofMillis(jwtService.getExpirationMs()))
+                .maxAge(Duration.ofMillis(maxAgeMs))
                 .sameSite("Lax")
+                .build();
+    }
+
+    public ResponseCookie createRefreshTokenCookie(String refreshToken) {
+        String cookieName = StringUtils.hasText(jwtService.getRefreshCookieName()) ? jwtService.getRefreshCookieName() : "REFRESH_TOKEN";
+        long maxAgeMs = jwtService.getRefreshExpirationMs() > 0 ? jwtService.getRefreshExpirationMs() : 604800000L;
+        return ResponseCookie.from(cookieName, refreshToken != null ? refreshToken : "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/auth")
+                .maxAge(Duration.ofMillis(maxAgeMs))
+                .sameSite("Strict")
                 .build();
     }
 
     public ResponseCookie createClearCookie() {
-        return ResponseCookie.from("ACCESS_TOKEN", "")
+        String cookieName = StringUtils.hasText(jwtService.getCookieName()) ? jwtService.getCookieName() : "ACCESS_TOKEN";
+        return ResponseCookie.from(cookieName, "")
                 .httpOnly(true)
-                .secure(false)
+                .secure(cookieSecure)
                 .path("/")
                 .maxAge(0)
                 .sameSite("Lax")
                 .build();
+    }
+
+    public ResponseCookie createClearRefreshTokenCookie() {
+        String cookieName = StringUtils.hasText(jwtService.getRefreshCookieName()) ? jwtService.getRefreshCookieName() : "REFRESH_TOKEN";
+        return ResponseCookie.from(cookieName, "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/auth")
+                .maxAge(0)
+                .sameSite("Strict")
+                .build();
+    }
+
+    private void evictUserCache(UUID userId) {
+        if (userDetailsService != null && userId != null) {
+            userDetailsService.evictUserAuthState(userId);
+        }
     }
 
     private TokenResponse createSessionAndGenerateTokens(User user, String ipAddress, String userAgent) {

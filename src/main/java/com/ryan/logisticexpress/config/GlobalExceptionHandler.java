@@ -1,8 +1,12 @@
 package com.ryan.logisticexpress.config;
 
+import com.ryan.logisticexpress.auth.exceptions.InvalidRefreshTokenException;
 import com.ryan.logisticexpress.common.exception.BaseException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -16,10 +20,32 @@ import java.util.stream.Collectors;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
+
     public record ApiError(int status, String errorCode, String message, Instant timestamp) {}
 
     @ExceptionHandler(BaseException.class)
     public Object handleBaseException(BaseException ex, HttpServletRequest request) {
+        if (ex instanceof InvalidRefreshTokenException && isApiRequest(request)) {
+            ResponseCookie clearAccess = ResponseCookie.from("ACCESS_TOKEN", "")
+                    .httpOnly(true)
+                    .secure(cookieSecure)
+                    .path("/")
+                    .maxAge(0)
+                    .sameSite("Lax")
+                    .build();
+            ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN", "")
+                    .httpOnly(true)
+                    .secure(cookieSecure)
+                    .path("/auth")
+                    .maxAge(0)
+                    .sameSite("Strict")
+                    .build();
+            return ResponseEntity.status(ex.getStatus())
+                    .header(HttpHeaders.SET_COOKIE, clearAccess.toString(), clearRefresh.toString())
+                    .body(new ApiError(ex.getStatus().value(), ex.getErrorCode(), ex.getMessage(), Instant.now()));
+        }
         return buildResponse(request, ex.getStatus(), ex.getErrorCode(), ex.getMessage());
     }
 
@@ -56,6 +82,7 @@ public class GlobalExceptionHandler {
     private boolean isApiRequest(HttpServletRequest request) {
         String uri = request.getRequestURI();
         String accept = request.getHeader("Accept");
-        return (uri != null && uri.startsWith("/api/")) || (accept != null && accept.contains("application/json"));
+        return (uri != null && (uri.startsWith("/api/") || uri.startsWith("/auth/")))
+                || (accept != null && accept.contains("application/json"));
     }
 }
