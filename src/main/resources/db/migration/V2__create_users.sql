@@ -96,7 +96,7 @@ CREATE TABLE user_app_roles
                         'ROLE_HUB_STAFF',
                         'ROLE_SHIPPER',
                         'ROLE_ACCOUNTANT',
-                        'ROLE_CSKH',
+                        'ROLE_CS',
                         'ROLE_SHOP'
             ))
 );
@@ -176,7 +176,7 @@ CREATE TABLE verification_tokens
         CHECK (expires_at > created_at)
 );
 
--- Chỉ cho phép một token chưa consume trên mỗi user và purpose.
+-- Allowed 1 token on 1 user and compose.
 CREATE UNIQUE INDEX uq_verification_tokens_active
     ON verification_tokens (user_id, purpose) WHERE consumed_at IS NULL;
 
