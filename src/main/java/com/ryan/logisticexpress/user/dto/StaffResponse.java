@@ -16,9 +16,24 @@ public record StaffResponse(
         String phone,
         Status status,
         Set<Role> roles,
+        StaffProfileResponse staffProfile,
         Instant lastLoginAt,
         Instant createdAt
 ) {
+    public StaffResponse(
+            UUID id,
+            String username,
+            String email,
+            String fullName,
+            String phone,
+            Status status,
+            Set<Role> roles,
+            Instant lastLoginAt,
+            Instant createdAt
+    ) {
+        this(id, username, email, fullName, phone, status, roles, null, lastLoginAt, createdAt);
+    }
+
     public static StaffResponse from(User user) {
         String fullName = user.getProfile() != null ? user.getProfile().getFullName() : null;
         String phone = user.getProfile() != null ? user.getProfile().getPhone() : null;
@@ -31,6 +46,7 @@ public record StaffResponse(
                 phone,
                 user.getStatus(),
                 user.getRoles(),
+                StaffProfileResponse.from(user.getStaffProfile()),
                 user.getLastLoginAt(),
                 user.getCreatedAt()
         );

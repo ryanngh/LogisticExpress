@@ -1,6 +1,7 @@
 package com.ryan.logisticexpress.user.dto;
 
 import com.ryan.logisticexpress.user.enums.Role;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -32,5 +33,19 @@ public record CreateStaffRequest(
         String phone,
 
         @NotEmpty(message = "At least one role must be assigned")
-        Set<Role> roles
-) {}
+        Set<Role> roles,
+
+        @Valid
+        StaffProfileRequest staffProfile
+) {
+    public CreateStaffRequest(
+            String username,
+            String email,
+            String password,
+            String fullName,
+            String phone,
+            Set<Role> roles
+    ) {
+        this(username, email, password, fullName, phone, roles, null);
+    }
+}

@@ -78,6 +78,9 @@ public class User {
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private ShopProfile shopProfile;
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private StaffProfile staffProfile;
+
     @PrePersist
     protected void onCreate() {
         Instant now = Instant.now();
@@ -167,6 +170,13 @@ public class User {
         this.shopProfile = shopProfile;
         if (shopProfile != null) {
             shopProfile.setUser(this);
+        }
+    }
+
+    public void setStaffProfile(StaffProfile staffProfile) {
+        this.staffProfile = staffProfile;
+        if (staffProfile != null) {
+            staffProfile.setUser(this);
         }
     }
 }

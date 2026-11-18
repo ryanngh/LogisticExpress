@@ -101,7 +101,7 @@ public class SecurityConfig {
                         .requestMatchers("/auth/change-password").authenticated()
                         .requestMatchers("/shop/**", "/api/shop/**").hasRole("SHOP")
                         .requestMatchers("/shipper/**", "/api/shipper/**").hasRole("SHIPPER")
-                        .requestMatchers("/ops/users/**", "/api/ops/users/**").hasRole("ADMIN")
+                        .requestMatchers("/ops/users/**", "/api/ops/users/**").hasAnyRole("ADMIN", "DISPATCHER")
                         .requestMatchers("/ops/**", "/api/ops/**").hasAnyRole(
                                 "ADMIN",
                                 "DISPATCHER",
