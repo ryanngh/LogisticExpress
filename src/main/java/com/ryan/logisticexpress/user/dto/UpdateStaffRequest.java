@@ -2,6 +2,7 @@ package com.ryan.logisticexpress.user.dto;
 
 import com.ryan.logisticexpress.user.enums.Role;
 import com.ryan.logisticexpress.user.enums.Status;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
@@ -21,5 +22,17 @@ public record UpdateStaffRequest(
         @NotEmpty(message = "At least one role must be assigned")
         Set<Role> roles,
 
-        Status status
-) {}
+        Status status,
+
+        @Valid
+        StaffProfileRequest staffProfile
+) {
+    public UpdateStaffRequest(
+            String fullName,
+            String phone,
+            Set<Role> roles,
+            Status status
+    ) {
+        this(fullName, phone, roles, status, null);
+    }
+}

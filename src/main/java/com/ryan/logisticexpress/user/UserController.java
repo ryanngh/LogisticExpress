@@ -67,15 +67,19 @@ public class UserController {
     }
 
     /**
-     * Danh sách nhân viên nội bộ (Admin).
+     * Danh sách nhân viên nội bộ / Shipper (Admin, Điều phối viên).
      * GET /api/ops/users
      */
     @GetMapping("/api/ops/users")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER')")
     public ResponseEntity<List<StaffResponse>> listStaff(
-            @RequestParam(required = false) Role role
+            @RequestParam(required = false) Role role,
+            @RequestParam(required = false) UUID hubId
     ) {
-        return ResponseEntity.ok(userService.listStaff(role));
+        if (hubId == null) {
+            return ResponseEntity.ok(userService.listStaff(role));
+        }
+        return ResponseEntity.ok(userService.listStaff(role, hubId));
     }
 
     /**
@@ -83,11 +87,24 @@ public class UserController {
      * GET /api/ops/users/{id}
      */
     @GetMapping("/api/ops/users/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER')")
     public ResponseEntity<StaffResponse> getStaffById(
             @PathVariable UUID id
     ) {
         return ResponseEntity.ok(userService.getStaffById(id));
+    }
+
+    /**
+     * Cập nhật cấu hình StaffProfile (Hub, mã NV, biển số xe, tải trọng, số đơn/ca - J2).
+     * PUT /api/ops/users/{id}/staff-profile
+     */
+    @PutMapping("/api/ops/users/{id}/staff-profile")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER')")
+    public ResponseEntity<StaffResponse> upsertStaffProfile(
+            @PathVariable UUID id,
+            @Valid @RequestBody StaffProfileRequest request
+    ) {
+        return ResponseEntity.ok(userService.upsertStaffProfile(id, request));
     }
 
     /**

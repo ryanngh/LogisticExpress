@@ -1,5 +1,7 @@
 package com.ryan.logisticexpress.user.dto;
 
+import com.ryan.logisticexpress.address.dto.CreateVerifiedAddressRequest;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -12,6 +14,9 @@ public record UpdateShopProfileRequest(
 
         UUID pickupAddressId,
 
+        @Valid
+        CreateVerifiedAddressRequest pickupAddress,
+
         @Size(max = 100, message = "Bank name must not exceed 100 characters")
         String bankName,
 
@@ -20,4 +25,14 @@ public record UpdateShopProfileRequest(
 
         @Size(max = 150, message = "Bank account holder must not exceed 150 characters")
         String bankAccountHolder
-) {}
+) {
+    public UpdateShopProfileRequest(
+            String shopName,
+            UUID pickupAddressId,
+            String bankName,
+            String bankAccountNo,
+            String bankAccountHolder
+    ) {
+        this(shopName, pickupAddressId, null, bankName, bankAccountNo, bankAccountHolder);
+    }
+}
