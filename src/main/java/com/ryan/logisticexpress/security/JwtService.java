@@ -35,7 +35,7 @@ public class JwtService {
     @Autowired
     public JwtService(
             @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}") String secret,
-            @Value("${jwt.expiration-ms:86400000}") long expirationMs,
+            @Value("${jwt.expiration-ms:900000}") long expirationMs,
             @Value("${jwt.refresh-token.expiration-ms:${jwt.refresh-expiration-ms:604800000}}") long refreshExpirationMs,
             @Value("${jwt.cookie-name:ACCESS_TOKEN}") String cookieName,
             @Value("${jwt.refresh-token.cookie-name:${jwt.refresh-cookie-name:REFRESH_TOKEN}}") String refreshCookieName
