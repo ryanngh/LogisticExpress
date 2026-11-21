@@ -46,7 +46,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             @Param("rawIdentifier") String rawIdentifier
     );
 
-    @EntityGraph(attributePaths = {"roles", "credential", "profile", "shopProfile"})
+    @EntityGraph(attributePaths = {"roles", "credential", "profile", "shopProfile", "staffProfile"})
     @Query("SELECT u FROM User u WHERE u.id = :id")
     Optional<User> findByIdWithDetails(@Param("id") UUID id);
+
+    @Query("SELECT DISTINCT u FROM User u JOIN u.roles r JOIN u.staffProfile sp WHERE sp.hubId = :hubId AND (:role IS NULL OR r = :role)")
+    List<User> findStaffByHubAndRole(@Param("hubId") UUID hubId, @Param("role") Role role);
 }

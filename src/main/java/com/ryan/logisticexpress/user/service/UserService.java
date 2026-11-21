@@ -1,18 +1,24 @@
 package com.ryan.logisticexpress.user.service;
 
+import com.ryan.logisticexpress.address.dto.AddressResponse;
+import com.ryan.logisticexpress.address.entity.Address;
+import com.ryan.logisticexpress.address.service.AddressService;
 import com.ryan.logisticexpress.common.exception.BadRequestException;
 import com.ryan.logisticexpress.common.exception.ConflictException;
 import com.ryan.logisticexpress.common.exception.ForbiddenException;
 import com.ryan.logisticexpress.common.exception.ResourceNotFoundException;
+import com.ryan.logisticexpress.hub.service.HubOperationService;
 import com.ryan.logisticexpress.security.CustomUserDetailsService;
 import com.ryan.logisticexpress.user.dto.*;
 import com.ryan.logisticexpress.user.entity.ShopProfile;
+import com.ryan.logisticexpress.user.entity.StaffProfile;
 import com.ryan.logisticexpress.user.entity.User;
 import com.ryan.logisticexpress.user.entity.UserCredential;
 import com.ryan.logisticexpress.user.entity.UserProfile;
 import com.ryan.logisticexpress.user.enums.Role;
 import com.ryan.logisticexpress.user.enums.Status;
 import com.ryan.logisticexpress.user.repository.ShopProfileRepository;
+import com.ryan.logisticexpress.user.repository.StaffProfileRepository;
 import com.ryan.logisticexpress.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,20 +33,38 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final ShopProfileRepository shopProfileRepository;
+    private final StaffProfileRepository staffProfileRepository;
     private final PasswordEncoder passwordEncoder;
     private final CustomUserDetailsService userDetailsService;
+    private final AddressService addressService;
+    private final HubOperationService hubOperationService;
 
     @Autowired
     public UserService(
             UserRepository userRepository,
             ShopProfileRepository shopProfileRepository,
+            @Autowired(required = false) StaffProfileRepository staffProfileRepository,
             PasswordEncoder passwordEncoder,
-            @Autowired(required = false) CustomUserDetailsService userDetailsService
+            @Autowired(required = false) CustomUserDetailsService userDetailsService,
+            @Autowired(required = false) AddressService addressService,
+            @Autowired(required = false) HubOperationService hubOperationService
     ) {
         this.userRepository = userRepository;
         this.shopProfileRepository = shopProfileRepository;
+        this.staffProfileRepository = staffProfileRepository;
         this.passwordEncoder = passwordEncoder;
         this.userDetailsService = userDetailsService;
+        this.addressService = addressService;
+        this.hubOperationService = hubOperationService;
+    }
+
+    public UserService(
+            UserRepository userRepository,
+            ShopProfileRepository shopProfileRepository,
+            PasswordEncoder passwordEncoder,
+            CustomUserDetailsService userDetailsService
+    ) {
+        this(userRepository, shopProfileRepository, null, passwordEncoder, userDetailsService, null, null);
     }
 
     public UserService(
@@ -48,7 +72,7 @@ public class UserService {
             ShopProfileRepository shopProfileRepository,
             PasswordEncoder passwordEncoder
     ) {
-        this(userRepository, shopProfileRepository, passwordEncoder, null);
+        this(userRepository, shopProfileRepository, null, passwordEncoder, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -89,7 +113,10 @@ public class UserService {
 
         ShopProfile shopProfile = shopProfileRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("SHOP_NOT_FOUND", "Shop profile not initialized"));
-        return ShopProfileResponse.from(shopProfile);
+        AddressResponse pickupAddr = (addressService != null && shopProfile.getPickupAddressId() != null)
+                ? addressService.getAddressResponse(shopProfile.getPickupAddressId())
+                : null;
+        return ShopProfileResponse.from(shopProfile, pickupAddr);
     }
 
     @Transactional
@@ -106,7 +133,6 @@ public class UserService {
                     throw new ConflictException("SHOP_NAME_EXISTS", "Shop name is already taken");
                 });
 
-        // Ensure full bank info is supplied if any bank field is present (ck_shop_profiles_bank_complete)
         String bankName = normalize(request.bankName());
         String bankAccountNo = normalize(request.bankAccountNo());
         String bankAccountHolder = normalize(request.bankAccountHolder());
@@ -126,19 +152,50 @@ public class UserService {
                     return sp;
                 });
 
+        // A4 Snapshot rule: when pickupAddress payload is provided, INSERT a new Address snapshot
+        AddressResponse resolvedAddress = null;
+        if (request.pickupAddress() != null) {
+            if (addressService == null) {
+                throw new BadRequestException("ADDRESS_SERVICE_UNAVAILABLE", "Address service is required to create pickup address");
+            }
+            Address created = addressService.createVerifiedAddressSnapshot(request.pickupAddress(), currentUserId);
+            shopProfile.setPickupAddressId(created.getId());
+            resolvedAddress = AddressResponse.from(created);
+        } else if (request.pickupAddressId() != null) {
+            if (addressService != null) {
+                Address existing = addressService.getAddressOrThrow(request.pickupAddressId());
+                resolvedAddress = AddressResponse.from(existing);
+            }
+            shopProfile.setPickupAddressId(request.pickupAddressId());
+        } else {
+            shopProfile.setPickupAddressId(null);
+        }
+
         shopProfile.setShopName(shopName);
-        shopProfile.setPickupAddressId(request.pickupAddressId());
         shopProfile.setBankName(bankName);
         shopProfile.setBankAccountNo(bankAccountNo);
         shopProfile.setBankAccountHolder(bankAccountHolder);
 
-        return ShopProfileResponse.from(shopProfileRepository.save(shopProfile));
+        ShopProfile saved = shopProfileRepository.save(shopProfile);
+        return ShopProfileResponse.from(saved, resolvedAddress);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StaffResponse> listStaff(Role role, UUID hubId) {
+        List<User> staff;
+        if (hubId != null) {
+            staff = userRepository.findStaffByHubAndRole(hubId, role);
+        } else if (role != null) {
+            staff = userRepository.findByRole(role);
+        } else {
+            staff = userRepository.findAllStaff();
+        }
+        return staff.stream().map(StaffResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
     public List<StaffResponse> listStaff(Role role) {
-        List<User> staff = (role != null) ? userRepository.findByRole(role) : userRepository.findAllStaff();
-        return staff.stream().map(StaffResponse::from).toList();
+        return listStaff(role, null);
     }
 
     @Transactional(readOnly = true)
@@ -167,6 +224,10 @@ public class UserService {
             throw new BadRequestException("INVALID_ROLE", "Staff user must have at least one internal role");
         }
 
+        if (request.staffProfile() != null) {
+            validateStaffProfileUniqueAndHub(null, request.staffProfile());
+        }
+
         User user = User.builder()
                 .username(username)
                 .email(email)
@@ -188,6 +249,11 @@ public class UserService {
                 .build();
         user.setCredential(credential);
 
+        if (request.staffProfile() != null) {
+            StaffProfile sp = buildOrUpdateStaffProfile(user, null, request.staffProfile());
+            user.setStaffProfile(sp);
+        }
+
         return StaffResponse.from(userRepository.save(user));
     }
 
@@ -201,6 +267,10 @@ public class UserService {
                 .ifPresent(existing -> {
                     throw new ConflictException("PHONE_EXISTS", "Phone number already exists");
                 });
+
+        if (request.staffProfile() != null) {
+            validateStaffProfileUniqueAndHub(id, request.staffProfile());
+        }
 
         UserProfile profile = user.getProfile();
         if (profile == null) {
@@ -224,6 +294,11 @@ public class UserService {
             }
         }
 
+        if (request.staffProfile() != null) {
+            StaffProfile sp = buildOrUpdateStaffProfile(user, user.getStaffProfile(), request.staffProfile());
+            user.setStaffProfile(sp);
+        }
+
         User saved = userRepository.save(user);
         if (userDetailsService != null) {
             userDetailsService.evictUserAuthState(saved.getId());
@@ -232,15 +307,75 @@ public class UserService {
     }
 
     @Transactional
+    public StaffResponse upsertStaffProfile(UUID userId, StaffProfileRequest request) {
+        User user = findUserById(userId);
+        boolean hasStaffRole = user.getRoles().stream().anyMatch(r -> r != Role.ROLE_SHOP);
+        if (!hasStaffRole) {
+            throw new BadRequestException("INVALID_ROLE", "Cannot assign staff profile to a non-staff user");
+        }
+        validateStaffProfileUniqueAndHub(userId, request);
+        StaffProfile existing = user.getStaffProfile();
+        if (existing == null && staffProfileRepository != null) {
+            existing = staffProfileRepository.findById(userId).orElse(null);
+        }
+        StaffProfile sp = buildOrUpdateStaffProfile(user, existing, request);
+        user.setStaffProfile(sp);
+        if (staffProfileRepository != null) {
+            staffProfileRepository.save(sp);
+        } else {
+            userRepository.save(user);
+        }
+        return StaffResponse.from(user);
+    }
+
+    @Transactional
     public void deleteStaff(UUID id) {
         User user = findUserById(id);
-        // Soft delete: disable and revoke all active tokens
         user.setStatus(Status.DISABLED);
         user.incrementTokenVersion();
         userRepository.save(user);
         if (userDetailsService != null) {
             userDetailsService.evictUserAuthState(user.getId());
         }
+    }
+
+    private void validateStaffProfileUniqueAndHub(UUID currentUserId, StaffProfileRequest req) {
+        if (hubOperationService != null) {
+            hubOperationService.getHubOrThrow(req.hubId());
+        }
+        String empCode = req.employeeCode().trim().toUpperCase();
+        if (staffProfileRepository != null) {
+            staffProfileRepository.findByEmployeeCode(empCode)
+                    .filter(existing -> !existing.getUserId().equals(currentUserId))
+                    .ifPresent(existing -> {
+                        throw new ConflictException("EMPLOYEE_CODE_EXISTS", "Employee code already exists: " + empCode);
+                    });
+        }
+    }
+
+    private StaffProfile buildOrUpdateStaffProfile(User user, StaffProfile target, StaffProfileRequest req) {
+        String empCode = req.employeeCode().trim().toUpperCase();
+        String plate = normalize(req.vehiclePlate());
+        int maxCap = req.maxCapacityGram() != null ? req.maxCapacityGram() : 50000;
+        int maxOrders = req.maxOrdersPerShift() != null ? req.maxOrdersPerShift() : 35;
+
+        if (target == null) {
+            return StaffProfile.builder()
+                    .userId(user.getId())
+                    .user(user)
+                    .hubId(req.hubId())
+                    .employeeCode(empCode)
+                    .vehiclePlate(plate)
+                    .maxCapacityGram(maxCap)
+                    .maxOrdersPerShift(maxOrders)
+                    .build();
+        }
+        target.setHubId(req.hubId());
+        target.setEmployeeCode(empCode);
+        target.setVehiclePlate(plate);
+        target.setMaxCapacityGram(maxCap);
+        target.setMaxOrdersPerShift(maxOrders);
+        return target;
     }
 
     private User findUserById(UUID id) {
