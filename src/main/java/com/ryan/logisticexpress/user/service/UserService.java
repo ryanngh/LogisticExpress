@@ -378,6 +378,11 @@ public class UserService {
         return target;
     }
 
+    @Transactional(readOnly = true)
+    public User getUserEntityById(UUID id) {
+        return findUserById(id);
+    }
+
     private User findUserById(UUID id) {
         if (id == null) {
             throw new BadRequestException("UNAUTHORIZED", "User is unauthenticated");

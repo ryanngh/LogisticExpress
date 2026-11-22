@@ -62,6 +62,11 @@ public class GlobalExceptionHandler {
         return buildResponse(request, HttpStatus.FORBIDDEN, "FORBIDDEN", ex.getMessage());
     }
 
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public Object handleOptimisticLock(org.springframework.orm.ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {
+        return buildResponse(request, HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION", "Resource was modified concurrently. Please retry.");
+    }
+
     @ExceptionHandler(Exception.class)
     public Object handleGeneral(Exception ex, HttpServletRequest request) {
         return buildResponse(request, HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", ex.getMessage());
