@@ -42,6 +42,16 @@ public class AddressService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public ProvinceResponse getProvinceResponse(String code) {
+        if (code == null || code.isBlank()) {
+            throw new BadRequestException("INVALID_PROVINCE", "Province code cannot be blank");
+        }
+        return provinceRepository.findById(code.trim())
+                .map(ProvinceResponse::from)
+                .orElseThrow(() -> new ResourceNotFoundException("PROVINCE_NOT_FOUND", "Province not found: " + code));
+    }
+
     @Cacheable(value = CACHE_WARDS_BY_PROVINCE, key = "#provinceCode")
     @Transactional(readOnly = true)
     public List<WardResponse> listWardsByProvince(String provinceCode) {
