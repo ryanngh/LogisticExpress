@@ -19,13 +19,13 @@ public record RegisterRequest(
         @Pattern(regexp = "^(0|\\+84)[0-9]{9,10}$", message = "Invalid phone number format")
         String phone,
 
-        @NotBlank(message = "Shop name cannot be blank")
         @Size(max = 150, message = "Shop name must not exceed 150 characters")
         String shopName,
 
         @Pattern(regexp = "^[a-z0-9_.]{3,50}$", message = "Username must be 3-50 characters (lowercase letters, numbers, _, .)")
         String username,
 
+        @NotBlank(message = "Full name cannot be blank")
         @Size(max = 150, message = "Full name must not exceed 150 characters")
         String fullName
 ) {}

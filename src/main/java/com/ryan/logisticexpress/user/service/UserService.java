@@ -127,11 +127,6 @@ public class UserService {
         }
 
         String shopName = request.shopName().trim();
-        shopProfileRepository.findByShopName(shopName)
-                .filter(existing -> !existing.getUserId().equals(currentUserId))
-                .ifPresent(existing -> {
-                    throw new ConflictException("SHOP_NAME_EXISTS", "Shop name is already taken");
-                });
 
         String bankName = normalize(request.bankName());
         String bankAccountNo = normalize(request.bankAccountNo());

@@ -20,7 +20,6 @@ import com.ryan.logisticexpress.user.entity.UserCredential;
 import com.ryan.logisticexpress.user.entity.UserProfile;
 import com.ryan.logisticexpress.user.enums.Role;
 import com.ryan.logisticexpress.user.enums.Status;
-import com.ryan.logisticexpress.user.repository.ShopProfileRepository;
 import com.ryan.logisticexpress.user.repository.UserRepository;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +45,6 @@ import java.util.*;
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final ShopProfileRepository shopProfileRepository;
     private final UserSessionRepository userSessionRepository;
     private final VerificationTokenRepository verificationTokenRepository;
     private final PasswordEncoder passwordEncoder;
@@ -58,7 +56,6 @@ public class AuthService {
     @Autowired
     public AuthService(
             UserRepository userRepository,
-            ShopProfileRepository shopProfileRepository,
             UserSessionRepository userSessionRepository,
             VerificationTokenRepository verificationTokenRepository,
             PasswordEncoder passwordEncoder,
@@ -67,7 +64,6 @@ public class AuthService {
             @Value("${app.cookie.secure:false}") boolean cookieSecure
     ) {
         this.userRepository = userRepository;
-        this.shopProfileRepository = shopProfileRepository;
         this.userSessionRepository = userSessionRepository;
         this.verificationTokenRepository = verificationTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -78,30 +74,27 @@ public class AuthService {
 
     public AuthService(
             UserRepository userRepository,
-            ShopProfileRepository shopProfileRepository,
             UserSessionRepository userSessionRepository,
             VerificationTokenRepository verificationTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService
     ) {
-        this(userRepository, shopProfileRepository, userSessionRepository, verificationTokenRepository, passwordEncoder, jwtService, null, false);
+        this(userRepository, userSessionRepository, verificationTokenRepository, passwordEncoder, jwtService, null, false);
     }
 
-    // Register a new shop and its owner profile
+    // Register a new customer/shop account and owner profile
     @Transactional
     public TokenResponse registerShop(RegisterRequest request, String ipAddress, String userAgent) {
         String email = request.email().trim().toLowerCase();
         String phone = request.phone().trim();
-        String shopName = request.shopName().trim();
+        String fullName = request.fullName().trim();
+        String shopName = StringUtils.hasText(request.shopName()) ? request.shopName().trim() : fullName;
 
         if (userRepository.existsByEmail(email)) {
             throw new AccountAlreadyExistsException("Email already in use: " + email);
         }
         if (userRepository.existsByPhone(phone)) {
             throw new AccountAlreadyExistsException("Phone number already in use: " + phone);
-        }
-        if (shopProfileRepository.findByShopName(shopName).isPresent()) {
-            throw new AccountAlreadyExistsException("Shop name already taken: " + shopName);
         }
 
         String username = resolveOrGenerateUsername(request.username(), email);
@@ -116,7 +109,6 @@ public class AuthService {
                 .roles(Set.of(Role.ROLE_SHOP))
                 .build();
 
-        String fullName = StringUtils.hasText(request.fullName()) ? request.fullName().trim() : shopName;
         UserProfile profile = UserProfile.builder()
                 .user(user)
                 .fullName(fullName)
