@@ -26,6 +26,8 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID>, JpaSp
             "serviceType",
             "originHub",
             "destHub",
+            "currentHub",
+            "assignedPickupShipper",
             "pickupAddress",
             "pickupAddress.province",
             "pickupAddress.ward",

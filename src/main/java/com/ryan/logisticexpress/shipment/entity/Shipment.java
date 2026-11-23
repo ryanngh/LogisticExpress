@@ -249,4 +249,26 @@ public class Shipment {
     public void updateCurrentHub(Hub hub) {
         this.currentHub = hub;
     }
+
+    public void applyReweigh(
+            Integer actualWeightGram,
+            Integer lengthCm,
+            Integer widthCm,
+            Integer heightCm,
+            Integer chargeableWeightGram,
+            BigDecimal baseFee,
+            BigDecimal shippingFee,
+            BigDecimal returnFee,
+            BigDecimal amountToCollect
+    ) {
+        this.actualWeightGram = actualWeightGram;
+        this.lengthCm = lengthCm;
+        this.widthCm = widthCm;
+        this.heightCm = heightCm;
+        this.chargeableWeightGram = chargeableWeightGram;
+        this.baseFee = baseFee;
+        this.shippingFee = shippingFee;
+        this.returnFee = returnFee;
+        this.amountToCollect = amountToCollect;
+    }
 }
