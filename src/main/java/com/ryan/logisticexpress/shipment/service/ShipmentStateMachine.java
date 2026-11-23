@@ -147,11 +147,11 @@ public class ShipmentStateMachine {
             if (shipment.getRescueCount() >= MAX_RESCUE_COUNT) {
                 shipment.transitionToStatus(ShipmentStatus.RETURN_INITIATED);
                 recordEvent(shipment, ShipmentStatus.RETURN_INITIATED, actor, eventHub, reasonCode,
-                        "Giao lại sau cứu đơn thất bại — tự động chuyển hoàn", lat, lng, now);
+                        "Redelivery after rescue failed — auto-initiated return", lat, lng, now);
             } else if (shipment.getAttemptCount() >= MAX_DELIVERY_ATTEMPTS) {
                 shipment.transitionToStatus(ShipmentStatus.ON_HOLD_FOR_RETURN);
                 recordEvent(shipment, ShipmentStatus.ON_HOLD_FOR_RETURN, actor, eventHub, reasonCode,
-                        "Giao thất bại 3 lần — giữ chờ xác nhận hoàn/cứu đơn", lat, lng, now);
+                        "Delivery failed 3 times — held for return/rescue confirmation", lat, lng, now);
             }
             return shipmentRepository.save(shipment);
         }
@@ -166,8 +166,8 @@ public class ShipmentStateMachine {
             shipment.transitionToStatus(followUp);
             recordEvent(shipment, followUp, actor, eventHub, reasonCode,
                     followUp == ShipmentStatus.RETURN_INITIATED
-                            ? "Khách từ chối nhận sau cứu đơn — tự động chuyển hoàn"
-                            : "Khách từ chối nhận — giữ chờ xác nhận hoàn/cứu đơn",
+                            ? "Receiver refused after rescue — auto-initiated return"
+                            : "Receiver refused — held for return/rescue confirmation",
                     lat, lng, now);
             return shipmentRepository.save(shipment);
         }

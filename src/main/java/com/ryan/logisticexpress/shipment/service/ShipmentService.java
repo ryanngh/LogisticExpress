@@ -14,8 +14,10 @@ import com.ryan.logisticexpress.pricing.enums.FeePayer;
 import com.ryan.logisticexpress.pricing.enums.ZoneType;
 import com.ryan.logisticexpress.pricing.service.PricingEngineService;
 import com.ryan.logisticexpress.shipment.dto.*;
+import com.ryan.logisticexpress.shipment.dto.PickupIntakeDtos.*;
 import com.ryan.logisticexpress.shipment.entity.Shipment;
 import com.ryan.logisticexpress.shipment.entity.TrackingEvent;
+import com.ryan.logisticexpress.shipment.enums.FailureReasonCode;
 import com.ryan.logisticexpress.shipment.enums.ShipmentStatus;
 import com.ryan.logisticexpress.shipment.exceptions.InvalidShipmentStateTransitionException;
 import com.ryan.logisticexpress.shipment.exceptions.ShipmentNotFoundException;
@@ -23,6 +25,7 @@ import com.ryan.logisticexpress.shipment.repository.ShipmentRepository;
 import com.ryan.logisticexpress.shipment.repository.TrackingEventRepository;
 import com.ryan.logisticexpress.user.entity.User;
 import com.ryan.logisticexpress.user.enums.Role;
+import com.ryan.logisticexpress.user.enums.Status;
 import com.ryan.logisticexpress.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -188,7 +191,7 @@ public class ShipmentService {
                 .status(ShipmentStatus.CREATED)
                 .actor(shop)
                 .hub(originHub)
-                .note("Đơn hàng khởi tạo thành công")
+                .note("Shipment created")
                 .occurredAt(Instant.now())
                 .build();
         trackingEventRepository.save(initialEvent);
@@ -370,6 +373,236 @@ public class ShipmentService {
                 .toList();
 
         return new ShipmentDetailResponse(ShipmentResponse.from(shipment), events, barcode, qr);
+    }
+
+    // D1: Dispatcher assigns a shipper for pickup (CREATED -> PICKUP_ASSIGNED)
+    @Transactional
+    public ShipmentResponse assignPickupShipper(UUID shipmentId, AssignPickupRequest request, UUID actorUserId) {
+        Shipment shipment = getShipmentOrThrow(shipmentId);
+        if (shipment.getCurrentStatus() != ShipmentStatus.CREATED) {
+            throw new InvalidShipmentStateTransitionException(shipment.getCurrentStatus(), ShipmentStatus.PICKUP_ASSIGNED);
+        }
+
+        User actor = userService.getUserEntityById(actorUserId);
+        assertHubAccess(actor, shipment.getOriginHub());
+
+        User shipper = userService.getUserEntityById(request.shipperId());
+        if (!shipper.hasRole(Role.ROLE_SHIPPER) || shipper.getStatus() != Status.ACTIVE) {
+            throw new BadRequestException("INVALID_SHIPPER", "Assigned user must be an active shipper");
+        }
+        if (shipper.getStaffProfile() != null && shipment.getOriginHub() != null
+                && !shipment.getOriginHub().getId().equals(shipper.getStaffProfile().getHubId())) {
+            throw new BadRequestException("SHIPPER_HUB_MISMATCH", "Shipper does not belong to shipment origin hub");
+        }
+
+        shipment.assignPickupShipper(shipper);
+        String note = hasText(request.note()) ? request.note().trim() : "Pickup shipper assigned";
+        Shipment updated = shipmentStateMachine.validateAndTransition(
+                shipment,
+                ShipmentStatus.PICKUP_ASSIGNED,
+                actor,
+                "PICKUP_ASSIGNED",
+                note,
+                shipment.getOriginHub(),
+                null,
+                null
+        );
+        return ShipmentResponse.from(updated);
+    }
+
+    // D2: Shipper confirms pickup success (-> PICKED_UP) or failure (pickup_attempt_count++, 3rd -> CANCELLED)
+    @Transactional
+    public ShipmentResponse recordPickupResult(UUID shipmentId, PickupResultRequest request, UUID shipperUserId) {
+        Shipment shipment = getShipmentOrThrow(shipmentId);
+        if (shipment.getAssignedPickupShipper() == null
+                || !shipment.getAssignedPickupShipper().getId().equals(shipperUserId)) {
+            throw new ForbiddenException("NOT_ASSIGNED_SHIPPER", "Shipment is not assigned to this shipper for pickup");
+        }
+
+        User shipper = userService.getUserEntityById(shipperUserId);
+        if (Boolean.TRUE.equals(request.success())) {
+            String note = hasText(request.note()) ? request.note().trim() : "Package picked up by shipper";
+            Shipment updated = shipmentStateMachine.validateAndTransition(
+                    shipment,
+                    ShipmentStatus.PICKED_UP,
+                    shipper,
+                    "PICKED_UP",
+                    note,
+                    shipment.getOriginHub(),
+                    request.lat(),
+                    request.lng()
+            );
+            return ShipmentResponse.from(updated);
+        }
+
+        String reasonCode = request.reasonCode() != null ? request.reasonCode().name() : FailureReasonCode.OTHER.name();
+        String note = hasText(request.note()) ? request.note().trim() : "Pickup failed (" + reasonCode + ")";
+        Shipment updated = shipmentStateMachine.validateAndTransition(
+                shipment,
+                ShipmentStatus.PICKUP_ASSIGNED,
+                shipper,
+                reasonCode,
+                note,
+                shipment.getOriginHub(),
+                request.lat(),
+                request.lng()
+        );
+        return ShipmentResponse.from(updated);
+    }
+
+    // D3: Origin Hub/Post Office first-time intake from shipper (PICKED_UP) or counter drop-off (CREATED)
+    @Transactional
+    public ShipmentResponse intakeAtOriginHub(IntakeShipmentRequest request, UUID actorUserId) {
+        Shipment shipment = getShipmentByTrackingCodeOrThrow(request.trackingCode());
+        User actor = userService.getUserEntityById(actorUserId);
+
+        Hub intakeHub = resolveIntakeHub(actor, request.hubId(), shipment.getOriginHub());
+        if (shipment.getOriginHub() != null && !shipment.getOriginHub().getId().equals(intakeHub.getId())) {
+            throw new ForbiddenException("WRONG_ORIGIN_HUB", "Shipment must be received at its origin hub");
+        }
+
+        boolean sameHub = shipment.getDestHub() != null && intakeHub.getId().equals(shipment.getDestHub().getId());
+        ShipmentStatus targetStatus = sameHub ? ShipmentStatus.AT_DEST_HUB : ShipmentStatus.AT_ORIGIN_HUB;
+
+        // Idempotent replay: already received at this origin hub
+        if (shipment.getCurrentStatus() == targetStatus
+                && shipment.getCurrentHub() != null
+                && shipment.getCurrentHub().getId().equals(intakeHub.getId())) {
+            return ShipmentResponse.from(shipment);
+        }
+
+        if (shipment.getCurrentStatus() != ShipmentStatus.CREATED
+                && shipment.getCurrentStatus() != ShipmentStatus.PICKED_UP) {
+            throw new InvalidShipmentStateTransitionException(shipment.getCurrentStatus(), targetStatus);
+        }
+
+        shipment.updateCurrentHub(intakeHub);
+        String note = hasText(request.note())
+                ? request.note().trim()
+                : (sameHub ? "Received at origin hub (same as destination hub)" : "Received at origin hub");
+        Shipment updated = shipmentStateMachine.validateAndTransition(
+                shipment,
+                targetStatus,
+                actor,
+                "HUB_INTAKE",
+                note,
+                intakeHub,
+                null,
+                null
+        );
+        return ShipmentResponse.from(updated);
+    }
+
+    // D4: Actual weigh/measure at origin hub -> recalculate fees using snapshot rateCard & log discrepancy
+    @Transactional
+    public ReweighShipmentResponse reweighAtHub(UUID shipmentId, ReweighShipmentRequest request, UUID actorUserId) {
+        Shipment shipment = getShipmentOrThrow(shipmentId);
+        boolean atOriginHub = shipment.getCurrentStatus() == ShipmentStatus.AT_ORIGIN_HUB;
+        boolean sameHubAtDest = shipment.getCurrentStatus() == ShipmentStatus.AT_DEST_HUB
+                && shipment.getOriginHub() != null
+                && shipment.getCurrentHub() != null
+                && shipment.getOriginHub().getId().equals(shipment.getCurrentHub().getId());
+        if (!atOriginHub && !sameHubAtDest) {
+            throw new InvalidShipmentStateTransitionException("Shipment can only be reweighed at origin hub");
+        }
+
+        User actor = userService.getUserEntityById(actorUserId);
+        Hub activeHub = shipment.getCurrentHub() != null ? shipment.getCurrentHub() : shipment.getOriginHub();
+        assertHubAccess(actor, activeHub);
+
+        int oldChargeable = shipment.getChargeableWeightGram();
+        BigDecimal oldShippingFee = shipment.getShippingFee();
+        BigDecimal oldAmountToCollect = shipment.getAmountToCollect();
+
+        int volumetric = pricingEngineService.calculateVolumetricWeight(
+                request.lengthCm(),
+                request.widthCm(),
+                request.heightCm(),
+                shipment.getServiceType().getVolumetricDivisor()
+        );
+        int newChargeable = pricingEngineService.determineChargeableWeight(request.actualWeightGram(), volumetric);
+        BigDecimal newBaseFee = pricingEngineService.calculateBaseFee(shipment.getRateCard(), newChargeable);
+        BigDecimal newShippingFee = pricingEngineService.calculateShippingFee(newBaseFee, shipment.getInsuranceFee());
+        BigDecimal newReturnFee = pricingEngineService.calculateReturnFee(newBaseFee, shipment.getRateCard().getReturnFeeRatio());
+        // ponytail: [NEEDS_CONFIRMATION] auto-updates amountToCollect when feePayer == RECEIVER and fee increases; add shop confirmation flow if business requires holding/charging shop instead
+        BigDecimal newAmountToCollect = pricingEngineService.calculateAmountToCollect(
+                shipment.getCodAmount(),
+                newShippingFee,
+                shipment.getFeePayer()
+        );
+
+        int weightDelta = newChargeable - oldChargeable;
+        BigDecimal feeDelta = newShippingFee.subtract(oldShippingFee);
+
+        shipment.applyReweigh(
+                request.actualWeightGram(),
+                request.lengthCm(),
+                request.widthCm(),
+                request.heightCm(),
+                newChargeable,
+                newBaseFee,
+                newShippingFee,
+                newReturnFee,
+                newAmountToCollect
+        );
+        Shipment saved = shipmentRepository.save(shipment);
+
+        boolean changed = weightDelta != 0 || feeDelta.signum() != 0;
+        String baseNote = String.format(
+                "Actual reweigh: %dg -> %dg (delta %+dg); shipping fee %s -> %s (delta %s)",
+                oldChargeable, newChargeable, weightDelta, oldShippingFee, newShippingFee, feeDelta
+        );
+        String fullNote = hasText(request.note()) ? baseNote + " | " + request.note().trim() : baseNote;
+        trackingEventRepository.save(TrackingEvent.builder()
+                .shipment(saved)
+                .status(saved.getCurrentStatus())
+                .actor(actor)
+                .hub(activeHub)
+                .reasonCode(changed ? "REWEIGH_ADJUSTED" : "REWEIGH_CONFIRMED")
+                .note(fullNote)
+                .occurredAt(Instant.now())
+                .build());
+
+        return new ReweighShipmentResponse(
+                ShipmentResponse.from(saved),
+                oldChargeable,
+                newChargeable,
+                weightDelta,
+                oldShippingFee,
+                newShippingFee,
+                feeDelta,
+                oldAmountToCollect,
+                newAmountToCollect
+        );
+    }
+
+    private void assertHubAccess(User actor, Hub requiredHub) {
+        if (actor.hasRole(Role.ROLE_ADMIN) || requiredHub == null) {
+            return;
+        }
+        if (actor.getStaffProfile() != null && !requiredHub.getId().equals(actor.getStaffProfile().getHubId())) {
+            throw new ForbiddenException("HUB_ACCESS_DENIED", "You do not have access to this hub");
+        }
+    }
+
+    private Hub resolveIntakeHub(User actor, UUID requestedHubId, Hub originHub) {
+        UUID staffHubId = actor.getStaffProfile() != null ? actor.getStaffProfile().getHubId() : null;
+        if (staffHubId != null && !actor.hasRole(Role.ROLE_ADMIN)) {
+            if (requestedHubId != null && !requestedHubId.equals(staffHubId)) {
+                throw new ForbiddenException("HUB_ACCESS_DENIED", "Hub staff can only receive shipments at their assigned hub");
+            }
+            return hubOperationService.getHubOrThrow(staffHubId);
+        }
+        UUID targetHubId = requestedHubId != null ? requestedHubId
+                : (staffHubId != null ? staffHubId : (originHub != null ? originHub.getId() : null));
+        if (targetHubId == null) {
+            throw new BadRequestException("MISSING_HUB", "Hub ID is required for intake");
+        }
+        return hubOperationService.getHubOrThrow(targetHubId);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private Hub resolveHubFromAddress(Address address) {
