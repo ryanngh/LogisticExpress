@@ -26,6 +26,27 @@ public class PricingController {
         return ResponseEntity.ok(pricingEngineService.listServiceTypes());
     }
 
+    @PostMapping("/api/public/quote")
+    public ResponseEntity<com.ryan.logisticexpress.pricing.dto.QuoteResponse> calculateQuote(
+            @Valid @RequestBody com.ryan.logisticexpress.pricing.dto.QuoteRequest request
+    ) {
+        return ResponseEntity.ok(pricingEngineService.calculateQuote(request));
+    }
+
+    @GetMapping("/api/ops/rate-cards")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<List<com.ryan.logisticexpress.pricing.dto.RateCardResponse>> listRateCards() {
+        return ResponseEntity.ok(pricingEngineService.listRateCards());
+    }
+
+    @PostMapping("/api/ops/rate-cards")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<com.ryan.logisticexpress.pricing.dto.RateCardResponse> createRateCard(
+            @Valid @RequestBody com.ryan.logisticexpress.pricing.dto.CreateRateCardRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(pricingEngineService.createRateCard(request));
+    }
+
     @PostMapping("/api/ops/service-types")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ServiceTypeResponse> createServiceType(@Valid @RequestBody ServiceTypeRequest request) {
