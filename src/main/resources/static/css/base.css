@@ -1,0 +1,231 @@
+:root {
+  color-scheme: light only;
+
+  /* Brand & Semantic Colors (Logistic Express Design System) */
+  --le-primary: #DC2626;
+  --le-on-primary: #FFFFFF;
+  --le-primary-hover: #B91C1C;
+  --le-wine: #7F1D1D;
+  --le-on-wine: #FFFFFF;
+
+  --le-rose: #FEF2F2;
+  --le-rose-line: #FECACA;
+  --le-rose-soft: #FFF5F5;
+  --le-rose-tint: #FFF9F9;
+  --le-rose-focus: #F87171;
+  --le-rose-muted: #FEE2E2;
+
+  --le-surface: #FFFFFF;
+  --le-on-surface: #172033;
+  --le-surface-alt: #F8FAFC;
+  --le-surface-subtle: #F1F5F9;
+
+  --le-outline: #E2E8F0;
+  --le-outline-strong: #CBD5E1;
+  --le-muted: #64748B;
+  --le-ink-body: #526075;
+  --le-ink-nav: #475569;
+  --le-ink-label: #334155;
+  --le-skeleton: #DDE3EB;
+
+  --le-success: #15803D;
+  --le-success-container: #F0FDF4;
+  --le-success-border: #BBF7D0;
+  --le-on-success-container: #166534;
+
+  /* Radii */
+  --le-radius-sm: 6px;
+  --le-radius: 9px;
+  --le-radius-md: 12px;
+  --le-radius-lg: 16px;
+  --le-radius-xl: 20px;
+  --le-radius-2xl: 28px;
+  --le-radius-full: 9999px;
+
+  /* Shadows */
+  --le-shadow-card: 0 7px 25px rgba(15, 23, 42, 0.035);
+  --le-shadow-float: 0 12px 28px rgba(23, 32, 51, 0.095);
+  --le-shadow-dashboard: 0 24px 60px rgba(57, 22, 22, 0.24);
+  --le-shadow-modal: 0 25px 50px -12px rgba(23, 32, 51, 0.28);
+
+  /* Motion */
+  --le-ease-state: 200ms ease-out;
+  --le-ease-enter: 250ms cubic-bezier(0.2, 0, 0, 1);
+
+  /* Bootstrap token alignment */
+  --bs-primary: #DC2626;
+  --bs-primary-rgb: 220, 38, 38;
+  --bs-body-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bs-body-color: #172033;
+  --bs-body-bg: #FFFFFF;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 96px;
+}
+
+body {
+  background-color: var(--le-surface);
+  color: var(--le-on-surface);
+  font-family: var(--bs-body-font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.le-container {
+  width: min(100% - 30px, 1200px);
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .le-container {
+    width: min(100% - 48px, 1200px);
+  }
+}
+
+/* Skip link for keyboard accessibility */
+.le-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 1100;
+  background: var(--le-primary);
+  color: var(--le-on-primary);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 var(--le-radius) 0;
+}
+
+.le-skip-link:focus {
+  left: 0;
+}
+
+/* Buttons */
+.le-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 18px;
+  border-radius: var(--le-radius);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform var(--le-ease-state), background-color var(--le-ease-state), border-color var(--le-ease-state), color var(--le-ease-state);
+}
+
+.le-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.le-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.le-btn:focus-visible,
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--le-rose-focus);
+  outline-offset: 2px;
+}
+
+.le-btn-primary {
+  background-color: var(--le-primary);
+  color: var(--le-on-primary);
+}
+
+.le-btn-primary:hover:not(:disabled) {
+  background-color: var(--le-primary-hover);
+  color: var(--le-on-primary);
+}
+
+.le-btn-secondary {
+  background-color: var(--le-surface);
+  color: var(--le-primary);
+  border-color: var(--le-primary);
+}
+
+.le-btn-secondary:hover:not(:disabled) {
+  background-color: var(--le-rose);
+  color: var(--le-primary-hover);
+}
+
+.le-btn-tertiary {
+  background-color: var(--le-surface);
+  color: var(--le-ink-label);
+  border-color: var(--le-outline-strong);
+}
+
+.le-btn-tertiary:hover:not(:disabled) {
+  background-color: var(--le-rose);
+  border-color: var(--le-rose-line);
+  color: var(--le-on-surface);
+}
+
+.le-btn-surface {
+  background-color: var(--le-surface);
+  color: var(--le-primary);
+}
+
+.le-btn-surface:hover:not(:disabled) {
+  background-color: var(--le-rose);
+  color: var(--le-primary-hover);
+}
+
+.le-btn-icon {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: var(--le-radius);
+  background-color: var(--le-surface-subtle);
+  color: var(--le-on-surface);
+  border: none;
+  display: inline-grid;
+  place-items: center;
+  transition: background-color var(--le-ease-state), color var(--le-ease-state);
+}
+
+.le-btn-icon:hover {
+  background-color: var(--le-rose);
+  color: var(--le-primary-hover);
+}
+
+.le-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.le-spin {
+  animation: le-spin 0.9s linear infinite;
+}
+
+@keyframes le-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,198 @@
+/* Auth Page & Modal — Feature-specific styles (Logistic Express) */
+
+.le-auth-backdrop {
+  flex: 1;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px 16px;
+  background:
+    radial-gradient(circle at top right, rgba(220, 38, 38, 0.14), transparent 42%),
+    radial-gradient(circle at bottom left, rgba(127, 29, 29, 0.16), transparent 45%),
+    rgba(23, 32, 51, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.le-auth-card {
+  width: 100%;
+  max-width: 530px;
+  border-radius: var(--le-radius-lg);
+  border-top: 4px solid var(--le-primary);
+  background-color: var(--le-surface);
+  padding: 24px;
+  box-shadow: var(--le-shadow-modal);
+}
+
+/* When embedded inside Bootstrap Modal */
+.le-auth-modal .modal-content {
+  border: none;
+  border-radius: var(--le-radius-lg);
+  background: transparent;
+  box-shadow: none;
+}
+
+.le-auth-modal .modal-dialog {
+  max-width: 530px;
+}
+
+.le-auth-title {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 28px;
+  letter-spacing: -0.015em;
+  color: var(--le-on-surface);
+  margin: 0;
+}
+
+.le-auth-subtitle {
+  margin-top: 8px;
+  margin-bottom: 0;
+  font-size: 13px;
+  line-height: 22px;
+  color: var(--le-muted);
+}
+
+/* 3-tab switcher matching Stitch Auth States 01–04 */
+.le-auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  border-radius: var(--le-radius-md);
+  background-color: var(--le-surface-subtle);
+  padding: 6px;
+  margin: 20px 0;
+}
+
+.le-auth-tab {
+  border: none;
+  border-radius: var(--le-radius-sm);
+  padding: 10px 8px;
+  background: transparent;
+  color: var(--le-ink-nav);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color var(--le-ease-state), color var(--le-ease-state);
+}
+
+.le-auth-tab:hover:not(.is-active) {
+  color: var(--le-primary);
+}
+
+.le-auth-tab.is-active {
+  background-color: var(--le-primary);
+  color: var(--le-on-primary);
+}
+
+/* Form controls */
+.le-field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--le-ink-label);
+}
+
+.le-input {
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--le-radius);
+  border: 1px solid var(--le-outline-strong);
+  background-color: var(--le-surface);
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--le-on-surface);
+  transition: border-color var(--le-ease-state), box-shadow var(--le-ease-state), background-color var(--le-ease-state);
+}
+
+.le-input:focus {
+  border-color: var(--le-primary);
+  box-shadow: 0 0 0 3px var(--le-rose-line);
+  outline: none;
+}
+
+.le-input.is-invalid,
+.le-input[aria-invalid="true"] {
+  border-color: var(--le-primary);
+  background-color: var(--le-rose);
+}
+
+.le-input-pw-wrap {
+  position: relative;
+}
+
+.le-input-pw-wrap .le-input {
+  padding-right: 60px;
+}
+
+.le-pw-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  border-radius: var(--le-radius-sm);
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--le-ink-nav);
+  cursor: pointer;
+}
+
+.le-pw-toggle:hover {
+  color: var(--le-primary);
+}
+
+.le-field-error {
+  margin-top: 5px;
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--le-primary-hover);
+}
+
+/* Alert banners (Error & Success State 04) */
+.le-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: var(--le-radius-md);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.le-alert-success {
+  border: 1px solid var(--le-success-border);
+  background-color: var(--le-success-container);
+  color: var(--le-on-success-container);
+}
+
+.le-alert-error {
+  border: 1px solid var(--le-rose-line);
+  background-color: var(--le-rose);
+  color: var(--le-primary-hover);
+}
+
+.le-auth-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--le-primary-hover);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.le-auth-link:hover {
+  color: var(--le-primary);
+}
