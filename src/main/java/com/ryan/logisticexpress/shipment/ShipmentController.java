@@ -2,6 +2,7 @@ package com.ryan.logisticexpress.shipment;
 
 import com.ryan.logisticexpress.security.CustomUserDetails;
 import com.ryan.logisticexpress.shipment.dto.*;
+import com.ryan.logisticexpress.shipment.dto.PickupIntakeDtos.*;
 import com.ryan.logisticexpress.shipment.enums.ShipmentStatus;
 import com.ryan.logisticexpress.shipment.service.ShipmentService;
 import jakarta.validation.Valid;
@@ -86,7 +87,7 @@ public class ShipmentController {
             @RequestBody(required = false) Map<String, String> body,
             @AuthenticationPrincipal CustomUserDetails user
     ) {
-        String reason = (body != null && body.containsKey("reason")) ? body.get("reason") : "Hủy đơn hàng bởi người gửi";
+        String reason = (body != null && body.containsKey("reason")) ? body.get("reason") : "Cancelled by sender";
         return ResponseEntity.ok(shipmentService.cancelShipment(id, reason, user.getId(), false));
     }
 
@@ -102,5 +103,44 @@ public class ShipmentController {
     ) {
         Page<ShipmentResponse> page = shipmentService.searchShipments(shopId, status, trackingCode, fromDate, toDate, pageable);
         return ResponseEntity.ok(page);
+    }
+
+    @PostMapping("/api/ops/shipments/{id}/assign-pickup")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCHER')")
+    public ResponseEntity<ShipmentResponse> assignPickupShipper(
+            @PathVariable UUID id,
+            @Valid @RequestBody AssignPickupRequest request,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        return ResponseEntity.ok(shipmentService.assignPickupShipper(id, request, user.getId()));
+    }
+
+    @PostMapping("/api/shipper/shipments/{id}/pickup")
+    @PreAuthorize("hasRole('SHIPPER')")
+    public ResponseEntity<ShipmentResponse> recordPickupResult(
+            @PathVariable UUID id,
+            @Valid @RequestBody PickupResultRequest request,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        return ResponseEntity.ok(shipmentService.recordPickupResult(id, request, user.getId()));
+    }
+
+    @PostMapping("/api/ops/shipments/intake")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HUB_STAFF')")
+    public ResponseEntity<ShipmentResponse> intakeAtOriginHub(
+            @Valid @RequestBody IntakeShipmentRequest request,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        return ResponseEntity.ok(shipmentService.intakeAtOriginHub(request, user.getId()));
+    }
+
+    @PostMapping("/api/ops/shipments/{id}/reweigh")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HUB_STAFF')")
+    public ResponseEntity<ReweighShipmentResponse> reweighAtHub(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReweighShipmentRequest request,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        return ResponseEntity.ok(shipmentService.reweighAtHub(id, request, user.getId()));
     }
 }
