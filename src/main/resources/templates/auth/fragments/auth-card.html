@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section th:fragment="authCard(initialTab, nextUrl, isModal, errorParam, isAuthenticated)"
+         class="le-auth-card"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="auth-modal-title"
+         data-auth-card
+         th:attr="data-initial-tab=${initialTab != null ? initialTab : 'signin'},
+                  data-next-url=${nextUrl != null ? nextUrl : ''},
+                  data-standalone=${isModal ? 'false' : 'true'},
+                  data-authenticated=${isAuthenticated != null && isAuthenticated ? 'true' : 'false'}">
+
+    <!-- Header -->
+    <div class="d-flex align-items-start justify-content-between gap-3">
+        <div>
+            <h1 id="auth-modal-title" class="le-auth-title">UTE Express</h1>
+
+        </div>
+        <button th:if="${isModal}"
+                type="button"
+                class="le-btn-icon flex-shrink-0"
+                data-bs-dismiss="modal"
+                aria-label="Đóng cửa sổ">
+            <i data-lucide="x" style="width:16px;height:16px;" aria-hidden="true"></i>
+        </button>
+        <a th:unless="${isModal}"
+           th:href="@{/}"
+           class="le-btn-icon flex-shrink-0"
+           aria-label="Quay về trang chủ">
+            <i data-lucide="x" style="width:16px;height:16px;" aria-hidden="true"></i>
+        </a>
+    </div>
+
+    <!-- Session / Permission Notice when redirected to /login -->
+    <div th:if="${!isModal and errorParam == 'session_expired'}"
+         class="le-alert le-alert-error mt-3" role="alert">
+        <i data-lucide="alert-circle" class="flex-shrink-0 mt-1" style="width:16px;height:16px;" aria-hidden="true"></i>
+        <span>Phiên đăng nhập đã hết hạn hoặc bị thu hồi. Vui lòng đăng nhập lại.</span>
+    </div>
+    <div th:if="${!isModal and errorParam == 'forbidden'}"
+         class="le-alert le-alert-error mt-3" role="alert">
+        <i data-lucide="shield-alert" class="flex-shrink-0 mt-1" style="width:16px;height:16px;" aria-hidden="true"></i>
+        <span>Bạn không có quyền truy cập trang vừa yêu cầu.</span>
+    </div>
+
+    <!-- 3-Tab Switcher (Sign in | Sign up | Quên mật khẩu) -->
+    <div class="le-auth-tabs" role="tablist" aria-label="Nội dung cửa sổ">
+        <button type="button"
+                role="tab"
+                class="le-auth-tab"
+                data-auth-tab="signin"
+                aria-selected="true">Đăng nhập</button>
+        <button type="button"
+                role="tab"
+                class="le-auth-tab"
+                data-auth-tab="signup"
+                aria-selected="false">Đăng kí</button>
+        <button type="button"
+                role="tab"
+                class="le-auth-tab"
+                data-auth-tab="forgot"
+                aria-selected="false">Quên mật khẩu</button>
+    </div>
+
+    <!-- Panel 1: Sign In -->
+    <form class="d-grid gap-3"
+          data-auth-panel="signin"
+          data-form="signin"
+          th:action="@{/auth/login}"
+          method="post"
+          novalidate>
+        <div>
+            <label for="login-account" class="le-field-label">Tên tài khoản hoặc Email *</label>
+            <input id="login-account"
+                   name="usernameOrEmail"
+                   type="text"
+                   autocomplete="username"
+                   placeholder="Nhập tên tài khoản hoặc email"
+                   class="le-input"
+                   aria-describedby="login-account-error">
+            <p id="login-account-error" class="le-field-error d-none" role="alert"></p>
+        </div>
+
+        <div>
+            <label for="login-password" class="le-field-label">Mật khẩu *</label>
+            <div class="le-input-pw-wrap">
+                <input id="login-password"
+                       name="password"
+                       type="password"
+                       autocomplete="current-password"
+                       placeholder="Nhập mật khẩu"
+                       class="le-input"
+                       aria-describedby="login-password-error">
+                <button type="button"
+                        class="le-pw-toggle"
+                        data-toggle-pw="login-password"
+                        aria-label="Hiện mật khẩu">Hiện</button>
+            </div>
+            <p id="login-password-error" class="le-field-error d-none" role="alert"></p>
+        </div>
+
+        <div class="d-flex align-items-center justify-content-between gap-2">
+            <label class="d-flex align-items-center gap-2 mb-0" style="font-size:13px;color:var(--le-muted);cursor:pointer;">
+                <input type="checkbox" id="login-remember" class="form-check-input m-0">
+                <span>Ghi nhớ đăng nhập</span>
+            </label>
+            <button type="button" class="le-auth-link" data-switch-tab="forgot">Quên mật khẩu?</button>
+        </div>
+
+        <div class="d-none" data-form-banner aria-live="polite"></div>
+
+        <button type="submit" class="le-btn le-btn-primary w-100">
+            <span>Sign in</span>
+        </button>
+
+        <p class="text-center mb-0" style="font-size:13px;color:var(--le-muted);">
+            Chưa có tài khoản?
+            <button type="button" class="le-auth-link" data-switch-tab="signup">Đăng kí ngay</button>
+        </p>
+    </form>
+
+    <!-- Panel 2: Sign Up (5 required fields per Auth State 02; OTP skipped per backend) -->
+    <form class="d-grid gap-3 d-none"
+          data-auth-panel="signup"
+          data-form="signup"
+          th:action="@{/auth/register}"
+          method="post"
+          novalidate>
+        <div>
+            <label for="reg-fullname" class="le-field-label">Họ tên *</label>
+            <input id="reg-fullname"
+                   name="fullName"
+                   type="text"
+                   autocomplete="name"
+                   placeholder="Nguyễn Văn A"
+                   class="le-input"
+                   aria-describedby="reg-fullname-error">
+            <p id="reg-fullname-error" class="le-field-error d-none" role="alert"></p>
+        </div>
+
+        <div>
+            <label for="reg-phone" class="le-field-label">Số điện thoại (VN) *</label>
+            <input id="reg-phone"
+                   name="phone"
+                   type="tel"
+                   autocomplete="tel"
+                   placeholder="0901234567"
+                   class="le-input"
+                   aria-describedby="reg-phone-error">
+            <p id="reg-phone-error" class="le-field-error d-none" role="alert"></p>
+        </div>
+
+        <div>
+            <label for="reg-email" class="le-field-label">Email *</label>
+            <input id="reg-email"
+                   name="email"
+                   type="email"
+                   autocomplete="email"
+                   placeholder="ten@congty.vn"
+                   class="le-input"
+                   aria-describedby="reg-email-error">
+            <p id="reg-email-error" class="le-field-error d-none" role="alert"></p>
+        </div>
+
+        <div>
+            <label for="reg-password" class="le-field-label">Mật khẩu (6–100 ký tự) *</label>
+            <div class="le-input-pw-wrap">
+                <input id="reg-password"
+                       name="password"
+                       type="password"
+                       autocomplete="new-password"
+                       placeholder="Nhập mật khẩu"
+                       class="le-input"
+                       aria-describedby="reg-password-error">
+                <button type="button"
+                        class="le-pw-toggle"
+                        data-toggle-pw="reg-password"
+                        aria-label="Hiện mật khẩu">Hiện</button>
+            </div>
+            <p id="reg-password-error" class="le-field-error d-none" role="alert"></p>
+        </div>
+
+        <div>
+            <label for="reg-confirm" class="le-field-label">Nhập lại mật khẩu *</label>
+            <div class="le-input-pw-wrap">
+                <input id="reg-confirm"
+                       name="confirmPassword"
+                       type="password"
+                       autocomplete="new-password"
+                       placeholder="Nhập lại mật khẩu"
+                       class="le-input"
+                       aria-describedby="reg-confirm-error">
+                <button type="button"
+                        class="le-pw-toggle"
+                        data-toggle-pw="reg-confirm"
+                        aria-label="Hiện mật khẩu">Hiện</button>
+            </div>
+            <p id="reg-confirm-error" class="le-field-error d-none" role="alert"></p>
+        </div>
+
+        <div class="d-none" data-form-banner aria-live="polite"></div>
+
+        <button type="submit" class="le-btn le-btn-primary w-100 mt-1">
+            <span>Sign up</span>
+        </button>
+
+        <p class="text-center mb-0" style="font-size:13px;color:var(--le-muted);">
+            Đã có tài khoản?
+            <button type="button" class="le-auth-link" data-switch-tab="signin">Đăng nhập</button>
+        </p>
+    </form>
+
+    <!-- Panel 3: Forgot Password -->
+    <form class="d-grid gap-3 d-none"
+          data-auth-panel="forgot"
+          data-form="forgot"
+          th:action="@{/auth/forgot-password}"
+          method="post"
+          novalidate>
+        <div>
+            <label for="forgot-email" class="le-field-label">Email đã đăng ký *</label>
+            <input id="forgot-email"
+                   name="email"
+                   type="email"
+                   autocomplete="email"
+                   placeholder="ten@congty.vn"
+                   class="le-input"
+                   aria-describedby="forgot-email-error">
+            <p id="forgot-email-error" class="le-field-error d-none" role="alert"></p>
+        </div>
+
+        <div class="d-none" data-form-banner aria-live="polite"></div>
+
+        <button type="submit" class="le-btn le-btn-primary w-100">
+            <span>Gửi yêu cầu đặt lại mật khẩu</span>
+        </button>
+
+        <p class="text-center mb-0" style="font-size:13px;color:var(--le-muted);">
+            Đã nhớ mật khẩu?
+            <button type="button" class="le-auth-link" data-switch-tab="signin">Quay lại Sign in</button>
+        </p>
+    </form>
+</section>
+</body>
+</html>

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(
+          pageTitle='UTE Express — Quản lý chuyển phát nhanh nội địa',
+          extraCss=~{::extraCss},
+          content=~{::content},
+          extraScripts=~{::extraScripts}
+      )}">
+<th:block th:fragment="extraCss">
+    <link rel="stylesheet" th:href="@{/css/landing/landing.css}">
+    <link rel="stylesheet" th:href="@{/css/auth/auth.css}">
+</th:block>
+
+<th:block th:fragment="content">
+    <th:block th:replace="~{landing/fragments/header :: header(${isAuthenticated}, ${currentUsername}, ${dashboardUrl})}"></th:block>
+
+    <main id="main-content" class="flex-grow-1">
+        <div id="top"></div>
+
+        <!-- Hero Section -->
+        <section id="gioi-thieu" aria-labelledby="page-title" class="le-section le-hero bg-white">
+            <div class="le-container">
+                <div class="row align-items-center g-5">
+                    <div class="col-12 col-lg-6">
+                        <h1 id="page-title" class="le-display">
+                            Vận hành Giao nhận Toàn diện —
+                            <span style="color:var(--le-primary);">Nhanh chóng, Minh bạch &amp; Tối ưu Chi phí</span>
+                        </h1>
+                        <p class="le-lead">
+                            Hệ thống quản lý chuyển phát nhanh nội địa khép kín từ khâu Shop tạo đơn, trung chuyển qua mạng lưới Hub-and-Spoke, tối ưu lộ trình giao hàng chặng cuối đến đối soát tiền thu hộ COD tự động và chính xác.
+                        </p>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <a id="hero-register"
+                               th:href="@{/register}"
+                               data-open-auth="signup"
+                               class="le-btn le-btn-primary">
+                                <span>Đăng ký ngay</span>
+                                <i data-lucide="arrow-right" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            </a>
+                            <a id="hero-demo"
+                               th:href="@{/login}"
+                               data-open-auth="signin"
+                               class="le-btn le-btn-tertiary">
+                                <span>Đăng nhập hệ thống</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                        <div class="le-hero-visual" aria-label="Minh họa dashboard quản lý vận đơn UTE Express">
+                            <div class="le-hero-backdrop" aria-hidden="true"></div>
+                            <div class="le-mockup-card">
+                                <div class="le-mockup-topbar">
+                                    <span class="d-inline-flex align-items-center gap-2" style="font-size:12px;font-weight:700;">
+                                        <i data-lucide="route" style="width:16px;height:16px;color:var(--le-primary);" aria-hidden="true"></i>
+                                        UTE EXPRESS
+                                    </span>
+                                    <span class="le-status-pill">● Hệ thống vận hành</span>
+                                </div>
+                                <div class="le-mockup-body">
+                                    <div class="le-mockup-sidebar" aria-hidden="true">
+                                        <span class="le-skel-bar is-active"></span>
+                                        <span class="le-skel-bar"></span>
+                                        <span class="le-skel-bar"></span>
+                                        <span class="le-skel-bar"></span>
+                                        <span class="le-skel-bar mb-0"></span>
+                                    </div>
+                                    <div class="p-3 p-sm-4">
+                                        <h3 style="font-size:15px;font-weight:700;margin:0;">Tổng quan vận đơn</h3>
+                                        <p class="mt-1 mb-3" style="font-size:11px;color:var(--le-muted);">Theo dõi hành trình giao nhận hôm nay</p>
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-4">
+                                                <div class="le-stat-mini">
+                                                    <strong class="le-tabular">1.248</strong>
+                                                    <small>Tổng vận đơn</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-4">
+                                                <div class="le-stat-mini">
+                                                    <strong class="le-tabular">986</strong>
+                                                    <small>Đang xử lý</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-4">
+                                                <div class="le-stat-mini">
+                                                    <strong class="le-tabular">262</strong>
+                                                    <small>Đã giao</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="le-chart-bars" aria-hidden="true">
+                                            <span style="height:38%;"></span>
+                                            <span style="height:55%;"></span>
+                                            <span style="height:47%;"></span>
+                                            <span style="height:72%;"></span>
+                                            <span style="height:64%;"></span>
+                                            <span style="height:90%;"></span>
+                                            <span style="height:76%;"></span>
+                                            <span style="height:96%;"></span>
+                                        </div>
+                                        <div class="d-flex justify-content-between gap-2 mt-3" aria-hidden="true">
+                                            <span style="height:10px;width:28%;border-radius:999px;background:var(--le-outline);"></span>
+                                            <span style="height:10px;width:28%;border-radius:999px;background:var(--le-outline);"></span>
+                                            <span style="height:10px;width:28%;border-radius:999px;background:var(--le-outline);"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="le-float-badge le-float-top-right">
+                                <i data-lucide="map-pinned" class="flex-shrink-0" style="width:16px;height:16px;color:var(--le-primary);" aria-hidden="true"></i>
+                                <span>Phủ sóng 34 Tỉnh/Thành · ~3.300 Phường/Xã</span>
+                            </div>
+                            <div class="le-float-badge le-float-bottom-left">
+                                <i data-lucide="navigation" class="flex-shrink-0" style="width:16px;height:16px;color:var(--le-primary);" aria-hidden="true"></i>
+                                <span>Tối ưu tuyến giao hàng chặng cuối</span>
+                            </div>
+                            <div class="le-float-badge le-float-bottom-right">
+                                <i data-lucide="wallet-cards" class="flex-shrink-0" style="width:16px;height:16px;color:var(--le-primary);" aria-hidden="true"></i>
+                                <span>Đối soát COD minh bạch</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Metrics Strip -->
+        <section aria-label="Thông số năng lực" class="le-metrics-strip">
+            <div class="le-container">
+                <div class="row g-0">
+                    <div class="col-12 col-sm-6 col-lg-3 le-metric-item">
+                        <strong class="le-metric-title le-tabular">34 Tỉnh / ~3.300 Phường</strong>
+                        <span class="le-metric-desc">Cập nhật đầy đủ danh mục địa giới hành chính 2 cấp Việt Nam.</span>
+                    </div>
+                    <div class="col-12 col-sm-6 col-lg-3 le-metric-item">
+                        <strong class="le-metric-title le-tabular">15 Trạng thái Vận đơn</strong>
+                        <span class="le-metric-desc">Theo dõi và kiểm soát chặt chẽ từng điểm chạm hành trình.</span>
+                    </div>
+                    <div class="col-12 col-sm-6 col-lg-3 le-metric-item">
+                        <strong class="le-metric-title le-tabular">4 Phân hệ Chuyên biệt</strong>
+                        <span class="le-metric-desc">Thiết kế tối ưu riêng cho Shop, Shipper, Điều phối và Khách hàng.</span>
+                    </div>
+                    <div class="col-12 col-sm-6 col-lg-3 le-metric-item">
+                        <strong class="le-metric-title">Đối soát COD Tự động</strong>
+                        <span class="le-metric-desc">Ghi nhận dòng tiền minh bạch, chính xác theo từng phiên thanh toán.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="tinh-nang" aria-labelledby="features-title" class="le-section le-section-alt">
+            <div class="le-container">
+                <span class="le-eyebrow">Tính năng chính</span>
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <article class="le-card">
+                            <span class="le-icon-circle">
+                                <i data-lucide="map-pinned" style="width:20px;height:20px;" aria-hidden="true"></i>
+                            </span>
+                            <h3 class="le-card-title">Chuẩn hóa Địa giới Hành chính 2 cấp</h3>
+                            <p class="le-card-text">Tự động ánh xạ và chuẩn hóa địa chỉ giao nhận theo danh mục Tỉnh/Thành và Phường/Xã mới, hạn chế sai sót phân tuyến.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <article class="le-card">
+                            <span class="le-icon-circle">
+                                <i data-lucide="route" style="width:20px;height:20px;" aria-hidden="true"></i>
+                            </span>
+                            <h3 class="le-card-title">Tối ưu Tuyến Giao hàng Chặng cuối (VRPTW)</h3>
+                            <p class="le-card-text">Gom đơn theo khu vực phường/xã và sắp xếp lộ trình giao hàng hợp lý theo tải trọng xe và khung giờ khách hẹn.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <article class="le-card">
+                            <span class="le-icon-circle">
+                                <i data-lucide="wallet-cards" style="width:20px;height:20px;" aria-hidden="true"></i>
+                            </span>
+                            <h3 class="le-card-title">Sổ cái COD &amp; Đối soát Minh bạch</h3>
+                            <p class="le-card-text">Quản lý chặt chẽ dòng tiền từ lúc Shipper thu hộ, đóng ca nộp quỹ về bưu cục đến chuyển khoản thanh toán cho Shop.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <article class="le-card">
+                            <span class="le-icon-circle">
+                                <i data-lucide="shield-check" style="width:20px;height:20px;" aria-hidden="true"></i>
+                            </span>
+                            <h3 class="le-card-title">Bảo mật Thông tin &amp; Đổi lịch Linh hoạt</h3>
+                            <p class="le-card-text">Che bảo mật số điện thoại, địa chỉ chi tiết trên trang tra cứu công khai và hỗ trợ người nhận đổi khung giờ giao qua link.</p>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Process Section -->
+        <section id="quy-trinh" aria-labelledby="process-title" class="le-section bg-white">
+            <div class="le-container">
+                <span class="le-eyebrow">Hub-and-Spoke · 6 bước</span>
+                <div class="row g-3">
+                    <div class="col-12 col-md-4">
+                        <article class="le-card">
+                            <div class="le-step-num le-tabular">01</div>
+                            <h3 class="le-card-title">Tạo đơn &amp; In nhãn</h3>
+                            <p class="le-card-text">Shop lên đơn nhanh, hệ thống tự động tính cước và xuất nhãn mã vạch/QR.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <article class="le-card">
+                            <div class="le-step-num le-tabular">02</div>
+                            <h3 class="le-card-title">Lấy hàng &amp; Cân đo</h3>
+                            <p class="le-card-text">Shipper đến lấy hàng tận nơi, nhân viên bưu cục cân đo thực tế và xác nhận nhập kho.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <article class="le-card">
+                            <div class="le-step-num le-tabular">03</div>
+                            <h3 class="le-card-title">Đóng bao &amp; Trung chuyển</h3>
+                            <p class="le-card-text">Phân loại hàng theo Hub đích, niêm phong bao hàng Manifest và luân chuyển liên tỉnh.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <article class="le-card">
+                            <div class="le-step-num le-tabular">04</div>
+                            <h3 class="le-card-title">Chia tuyến &amp; Giao hàng</h3>
+                            <p class="le-card-text">Điều phối gán tuyến cho Shipper giao chặng cuối, xác nhận giao kèm ảnh/chữ ký e-POD.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <article class="le-card">
+                            <div class="le-step-num le-tabular">05</div>
+                            <h3 class="le-card-title">Xử lý Ngoại lệ &amp; Cứu đơn</h3>
+                            <p class="le-card-text">Hỗ trợ giao lại, điều chỉnh COD hoặc giữ đơn 24h để Shop xử lý trước khi hoàn hàng.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <article class="le-card">
+                            <div class="le-step-num le-tabular">06</div>
+                            <h3 class="le-card-title">Đóng ca &amp; Đối soát COD</h3>
+                            <p class="le-card-text">Shipper nộp tiền cuối ngày, kế toán chốt bảng kê và thanh toán tự động cho Shop.</p>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pricing Section -->
+        <section id="bang-gia" aria-labelledby="pricing-title" class="le-section le-section-alt">
+            <div class="le-container">
+                <span class="le-eyebrow">Bảng giá dịch vụ</span>
+                <div class="row g-3">
+                    <div class="col-12 col-sm-6">
+                        <article class="le-card d-flex flex-column gap-3 p-4">
+                            <div>
+                                <span class="le-tag-rose">STANDARD</span>
+                            </div>
+                            <h3 class="le-card-title mb-0">Gói Tiêu Chuẩn</h3>
+                            <div class="le-price le-tabular">
+                                18.000 đ <small>/ từ mức cước nội tỉnh</small>
+                            </div>
+                            <ul class="le-pricing-list">
+                                <li>Phù hợp hàng hóa thông thường.</li>
+                                <li>Tối ưu chi phí vận chuyển.</li>
+                                <li>Trọng lượng quy đổi thể tích chia 6000.</li>
+                            </ul>
+                        </article>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                        <article class="le-card le-card-outlined d-flex flex-column gap-3 p-4">
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <span class="le-tag-rose">EXPRESS</span>
+                                <span class="le-tag-rose">Phổ biến</span>
+                            </div>
+                            <h3 class="le-card-title mb-0">Gói Hỏa Tốc</h3>
+                            <div class="le-price le-tabular">
+                                30.000 đ <small>/ từ mức khởi điểm</small>
+                            </div>
+                            <ul class="le-pricing-list">
+                                <li>Ưu tiên xử lý và giao nhanh trong khung giờ cam kết.</li>
+                                <li>Trọng lượng quy đổi thể tích chia 5000.</li>
+                                <li>Phù hợp đơn hàng cần giao gấp.</li>
+                            </ul>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ecosystem & FAQ Section -->
+        <section id="he-sinh-thai" aria-labelledby="portals-title" class="le-section bg-white">
+            <div class="le-container">
+                <span class="le-eyebrow">Hệ sinh thái</span>
+                <div class="row g-3">
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <article class="le-card">
+                            <span class="le-icon-circle">
+                                <i data-lucide="store" style="width:20px;height:20px;" aria-hidden="true"></i>
+                            </span>
+                            <h3 class="le-card-title">Cổng Khách hàng Shop</h3>
+                            <p class="le-card-text">Tạo đơn, in nhãn hàng loạt, quản lý vận đơn và theo dõi lịch sử đối soát COD.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <article class="le-card">
+                            <span class="le-icon-circle">
+                                <i data-lucide="smartphone" style="width:20px;height:20px;" aria-hidden="true"></i>
+                            </span>
+                            <h3 class="le-card-title">Ứng dụng Di động Shipper</h3>
+                            <p class="le-card-text">Giao diện tối ưu thao tác một tay, xem lộ trình giao nhận, ký nhận e-POD và đóng ca cuối ngày.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <article class="le-card">
+                            <span class="le-icon-circle">
+                                <i data-lucide="layout-dashboard" style="width:20px;height:20px;" aria-hidden="true"></i>
+                            </span>
+                            <h3 class="le-card-title">Cổng Vận hành Nội bộ</h3>
+                            <p class="le-card-text">Dành cho Điều phối viên, Nhân viên kho Hub, Kế toán, CSKH và Quản lý theo dõi KPI.</p>
+                        </article>
+                    </div>
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <article class="le-card">
+                            <span class="le-icon-circle">
+                                <i data-lucide="users" style="width:20px;height:20px;" aria-hidden="true"></i>
+                            </span>
+                            <h3 class="le-card-title">Trang Công khai</h3>
+                            <p class="le-card-text">Hỗ trợ ước tính cước phí nhanh và tra cứu hành trình vận đơn an toàn.</p>
+                        </article>
+                    </div>
+                </div>
+
+                <!-- FAQ -->
+                <div id="faq" aria-labelledby="faq-title" class="mt-5 pt-4">
+                    <span class="le-eyebrow">Hỏi đáp (FAQ)</span>
+                    <h2 id="faq-title" class="le-headline mb-4">
+                        Những câu hỏi thường gặp
+                    </h2>
+                    <div class="d-grid gap-2">
+                        <details class="le-faq-item">
+                            <summary>
+                                <span>Quy trình đăng ký tài khoản Shop mới như thế nào?</span>
+                                <i data-lucide="chevron-down" style="width:18px;height:18px;color:var(--le-muted);" aria-hidden="true"></i>
+                            </summary>
+                            <p>
+                                Shop điền thông tin đăng ký (tài khoản, email, số điện thoại, mật khẩu), sau đó trao đổi nhu cầu vận chuyển với đội ngũ triển khai để chọn gói dịch vụ và nhận hướng dẫn thiết lập qua kênh chính thức.
+                            </p>
+                        </details>
+                        <details class="le-faq-item">
+                            <summary>
+                                <span>Thời gian và cách thức đối soát thanh toán tiền thu hộ COD?</span>
+                                <i data-lucide="chevron-down" style="width:18px;height:18px;color:var(--le-muted);" aria-hidden="true"></i>
+                            </summary>
+                            <p>
+                                Sau khi Shipper đóng ca và nộp quỹ, kế toán đối chiếu các khoản thu hộ, cước và điều chỉnh trong từng phiên thanh toán. Lịch chuyển khoản cụ thể được thống nhất trong chính sách dịch vụ áp dụng cho Shop.
+                            </p>
+                        </details>
+                        <details class="le-faq-item">
+                            <summary>
+                                <span>Làm sao để yêu cầu giao lại hoặc thay đổi tiền COD khi đơn đang vận chuyển?</span>
+                                <i data-lucide="chevron-down" style="width:18px;height:18px;color:var(--le-muted);" aria-hidden="true"></i>
+                            </summary>
+                            <p>
+                                Shop gửi yêu cầu qua cổng làm việc hoặc liên hệ CSKH. Yêu cầu được kiểm tra theo trạng thái vận đơn; đơn gặp ngoại lệ có thể được giữ tối đa 24 giờ để xử lý trước khi hoàn.
+                            </p>
+                        </details>
+                        <details class="le-faq-item">
+                            <summary>
+                                <span>Chính sách tính phí hoàn hàng được áp dụng ra sao?</span>
+                                <i data-lucide="chevron-down" style="width:18px;height:18px;color:var(--le-muted);" aria-hidden="true"></i>
+                            </summary>
+                            <p>
+                                Phí hoàn hàng tham khảo bằng 50% cước vận chuyển cơ bản. Khoản phí thực tế được thể hiện trong chính sách dịch vụ và bảng kê đối soát của đơn hàng.
+                            </p>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Banner Section -->
+        <section aria-labelledby="cta-title" class="le-section le-section-alt">
+            <div class="le-container">
+                <div class="le-cta-banner d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-4">
+                    <div>
+                        <span class="le-eyebrow" style="color:var(--le-rose-line);">Bắt đầu cùng UTE Express</span>
+                        <h2 id="cta-title" class="le-headline text-white mb-2" style="max-width:650px;">
+                            Bắt đầu quản lý vận chuyển chuyên nghiệp cùng UTE Express
+                        </h2>
+                        <p class="mb-0" style="font-size:14px;color:var(--le-rose-muted);">
+                            Kết nối Shop, đội giao nhận và vận hành trên một hành trình minh bạch, hiệu quả hơn mỗi ngày.
+                        </p>
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center gap-2 flex-shrink-0">
+                        <a id="bottom-register"
+                           th:href="@{/register}"
+                           data-open-auth="signup"
+                           class="le-btn le-btn-surface">
+                            <span>Đăng ký ngay</span>
+                        </a>
+                        <a id="bottom-login"
+                           th:href="@{/login}"
+                           data-open-auth="signin"
+                           class="le-btn le-btn-surface">
+                            <span>Đăng nhập</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <th:block th:replace="~{landing/fragments/footer :: footer}"></th:block>
+
+    <!-- Reusable Auth Modal (Bootstrap 5) embedding auth-card fragment -->
+    <div class="modal fade le-auth-modal"
+         id="authModal"
+         tabindex="-1"
+         aria-labelledby="auth-modal-title"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <th:block th:replace="~{auth/fragments/auth-card :: authCard('signin', '', true, null, ${isAuthenticated})}"></th:block>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="extraScripts">
+    <script th:src="@{/js/auth/auth.js}"></script>
+    <script th:src="@{/js/landing/landing.js}"></script>
+</th:block>
+</html>

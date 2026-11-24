@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(
+          pageTitle='Tài khoản — UTE Express',
+          extraCss=~{::extraCss},
+          content=~{::content},
+          extraScripts=~{::extraScripts}
+      )}">
+<th:block th:fragment="extraCss">
+    <link rel="stylesheet" th:href="@{/css/auth/auth.css}">
+</th:block>
+
+<th:block th:fragment="content">
+    <main id="main-content" class="le-auth-backdrop">
+        <a th:href="@{/}" class="d-inline-flex align-items-center gap-2 text-decoration-none bg-white px-3 py-2 rounded-pill shadow-sm"
+           style="color:var(--le-on-surface);font-weight:700;font-size:14px;">
+            <span class="d-inline-grid place-items-center rounded"
+                  style="width:28px;height:28px;background:var(--le-primary);color:#fff;display:inline-grid;place-items:center;">
+                <i data-lucide="route" style="width:16px;height:16px;" aria-hidden="true"></i>
+            </span>
+            <span>UTE Express</span>
+        </a>
+
+        <th:block th:replace="~{auth/fragments/auth-card :: authCard(${initialTab}, ${nextUrl}, false, ${errorParam}, ${isAuthenticated})}"></th:block>
+    </main>
+</th:block>
+
+<th:block th:fragment="extraScripts">
+    <script th:src="@{/js/auth/auth.js}"></script>
+</th:block>
+</html>

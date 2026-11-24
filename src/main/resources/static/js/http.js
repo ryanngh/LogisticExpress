@@ -2,12 +2,33 @@
     'use strict';
 
     const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
-    const NO_REFRESH_PATHS = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/forgot-password', '/auth/reset-password'];
+    const NO_REFRESH_PATHS = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout', '/auth/forgot-password', '/auth/reset-password'];
+    const AUTH_HINT_KEY = 'le_auth_hint';
     let refreshPromise = null;
 
     function getCsrfToken() {
         const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
         return match ? decodeURIComponent(match[1]) : null;
+    }
+
+    function markLoggedIn() {
+        try {
+            global.sessionStorage.setItem(AUTH_HINT_KEY, '1');
+        } catch (_) { /* storage may be unavailable */ }
+    }
+
+    function clearClientAuthState() {
+        try {
+            global.sessionStorage.removeItem(AUTH_HINT_KEY);
+        } catch (_) { /* storage may be unavailable */ }
+    }
+
+    function hasAuthHint() {
+        try {
+            return global.sessionStorage.getItem(AUTH_HINT_KEY) === '1';
+        } catch (_) {
+            return false;
+        }
     }
 
     function buildOptions(options) {
@@ -46,6 +67,16 @@
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: headers
+            }).then(function (res) {
+                if (res && res.ok) {
+                    markLoggedIn();
+                } else {
+                    clearClientAuthState();
+                }
+                return res;
+            }).catch(function () {
+                clearClientAuthState();
+                return null;
             }).finally(function () {
                 refreshPromise = null;
             });
@@ -72,11 +103,42 @@
             return fetch(url, buildOptions(options));
         }
 
-        const next = encodeURIComponent(window.location.pathname + window.location.search);
-        window.location.assign('/login?next=' + next);
+        clearClientAuthState();
+        const next = encodeURIComponent(global.location.pathname + global.location.search);
+        global.location.assign('/login?next=' + next + '&error=session_expired');
         return response;
+    }
+
+    async function authRefreshSilent() {
+        const res = await refreshSessionOnce();
+        if (!res || !res.ok) {
+            return null;
+        }
+        try {
+            return await res.json();
+        } catch (_) {
+            return { status: 'AUTHENTICATED' };
+        }
+    }
+
+    async function authLogout(redirectTo) {
+        try {
+            await fetch('/auth/logout', buildOptions({ method: 'POST' }));
+        } catch (_) {
+            // Even if network fails, clear client hint
+        } finally {
+            clearClientAuthState();
+        }
+        global.location.assign(redirectTo || '/?logged_out=1');
     }
 
     global.apiFetch = apiFetch;
     global.getCsrfToken = getCsrfToken;
+    global.authRefreshSilent = authRefreshSilent;
+    global.authLogout = authLogout;
+    global.authState = {
+        markLoggedIn: markLoggedIn,
+        clear: clearClientAuthState,
+        hasHint: hasAuthHint
+    };
 })(window);
