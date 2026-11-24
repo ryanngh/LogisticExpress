@@ -81,9 +81,10 @@ public class SecurityConfig {
                 )
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/login", "/register").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/login", "/register", "/forgot-password").permitAll()
                         .requestMatchers(
                                 "/",
+                                "/error",
                                 "/track/**",
                                 "/api/public/**",
                                 "/auth/login",

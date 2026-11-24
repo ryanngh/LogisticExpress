@@ -1,6 +1,8 @@
 package com.ryan.logisticexpress.config;
 
 import com.ryan.logisticexpress.security.CustomUserDetails;
+import org.springframework.boot.tomcat.TomcatConnectorCustomizer;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.core.Authentication;
@@ -17,6 +19,11 @@ import java.util.UUID;
 
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
+
+    @Bean
+    public TomcatConnectorCustomizer tomcatConnectorCustomizer() {
+        return connector -> connector.setMaxLocaleCount(50);
+    }
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
