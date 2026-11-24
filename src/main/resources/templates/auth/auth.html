@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/base :: layout(
-          pageTitle='Tài khoản — Logistic Express',
+          pageTitle='Tài khoản — UTE Express',
           extraCss=~{::extraCss},
           content=~{::content},
           extraScripts=~{::extraScripts}
@@ -18,7 +18,7 @@
                   style="width:28px;height:28px;background:var(--le-primary);color:#fff;display:inline-grid;place-items:center;">
                 <i data-lucide="route" style="width:16px;height:16px;" aria-hidden="true"></i>
             </span>
-            <span>Logistic Express</span>
+            <span>UTE Express</span>
         </a>
 
         <th:block th:replace="~{auth/fragments/auth-card :: authCard(${initialTab}, ${nextUrl}, false, ${errorParam}, ${isAuthenticated})}"></th:block>
