@@ -244,6 +244,21 @@ public class ShipmentService {
                 .orElseThrow(() -> new ShipmentNotFoundException(trackingCode));
     }
 
+    @Transactional
+    public Shipment getShipmentByTrackingCodeForUpdateOrThrow(String trackingCode) {
+        return shipmentRepository.findByTrackingCodeForUpdate(trackingCode.trim().toUpperCase())
+                .orElseThrow(() -> new ShipmentNotFoundException(trackingCode));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Shipment> findSortableShipmentsAtHub(UUID hubId) {
+        return shipmentRepository.findByCurrentHubIdAndCurrentStatusInAndDestHubIdNot(
+                hubId,
+                List.of(ShipmentStatus.AT_ORIGIN_HUB, ShipmentStatus.IN_LINEHAUL),
+                hubId
+        );
+    }
+
     @Transactional(readOnly = true)
     public ShipmentResponse getShipmentById(UUID shipmentId, UUID currentUserId, boolean isOps) {
         Shipment shipment = getShipmentOrThrow(shipmentId);
@@ -375,7 +390,6 @@ public class ShipmentService {
         return new ShipmentDetailResponse(ShipmentResponse.from(shipment), events, barcode, qr);
     }
 
-    // D1: Dispatcher assigns a shipper for pickup (CREATED -> PICKUP_ASSIGNED)
     @Transactional
     public ShipmentResponse assignPickupShipper(UUID shipmentId, AssignPickupRequest request, UUID actorUserId) {
         Shipment shipment = getShipmentOrThrow(shipmentId);
@@ -410,7 +424,6 @@ public class ShipmentService {
         return ShipmentResponse.from(updated);
     }
 
-    // D2: Shipper confirms pickup success (-> PICKED_UP) or failure (pickup_attempt_count++, 3rd -> CANCELLED)
     @Transactional
     public ShipmentResponse recordPickupResult(UUID shipmentId, PickupResultRequest request, UUID shipperUserId) {
         Shipment shipment = getShipmentOrThrow(shipmentId);
@@ -450,7 +463,6 @@ public class ShipmentService {
         return ShipmentResponse.from(updated);
     }
 
-    // D3: Origin Hub/Post Office first-time intake from shipper (PICKED_UP) or counter drop-off (CREATED)
     @Transactional
     public ShipmentResponse intakeAtOriginHub(IntakeShipmentRequest request, UUID actorUserId) {
         Shipment shipment = getShipmentByTrackingCodeOrThrow(request.trackingCode());
@@ -493,7 +505,6 @@ public class ShipmentService {
         return ShipmentResponse.from(updated);
     }
 
-    // D4: Actual weigh/measure at origin hub -> recalculate fees using snapshot rateCard & log discrepancy
     @Transactional
     public ReweighShipmentResponse reweighAtHub(UUID shipmentId, ReweighShipmentRequest request, UUID actorUserId) {
         Shipment shipment = getShipmentOrThrow(shipmentId);
@@ -648,6 +659,6 @@ public class ShipmentService {
                 return code;
             }
         }
-        return "LE" + datePrefix + UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
+        return "UTE" + datePrefix + UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
     }
 }
