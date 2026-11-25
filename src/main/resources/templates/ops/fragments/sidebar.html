@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+
+<!-- Reusable navigation body used by both desktop sidebar and mobile offcanvas -->
+<div th:fragment="sidebarBody(activeNav, currentUsername, currentRoles)" class="d-flex flex-column justify-content-between h-100">
+    <div class="p-3 p-lg-4 overflow-y-auto">
+        <!-- Brand Mark -->
+        <a th:href="@{/ops/dashboard}" class="d-flex align-items-center gap-2 text-decoration-none">
+            <span class="le-ops-brand-icon">
+                <i data-lucide="route" style="width:20px;height:20px;" aria-hidden="true"></i>
+            </span>
+            <div>
+                <div class="fw-bold" style="font-size:16px;color:var(--le-on-surface);line-height:1.2;">UTE EXPRESS</div>
+                <div style="font-size:11px;color:var(--le-muted);">Admin Control Center</div>
+            </div>
+        </a>
+
+        <!-- Navigation Groups -->
+        <nav aria-label="Điều hướng quản trị" class="mt-4 d-flex flex-column gap-4">
+            <!-- Group 1: Overview -->
+            <div>
+                <div class="le-ops-nav-group-label">Overview</div>
+                <ul class="list-unstyled mb-0 d-flex flex-column gap-1">
+                    <li>
+                        <a th:href="@{/ops/dashboard}" class="le-ops-nav-link"
+                           th:classappend="${activeNav == 'dashboard'} ? ' is-active'"
+                           th:attr="aria-current=${activeNav == 'dashboard'} ? 'page' : null">
+                            <i data-lucide="layout-dashboard" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Group 2: Operations -->
+            <div>
+                <div class="le-ops-nav-group-label">Operations</div>
+                <ul class="list-unstyled mb-0 d-flex flex-column gap-1">
+                    <li>
+                        <a th:href="@{/ops/shipments}" class="le-ops-nav-link"
+                           th:classappend="${activeNav == 'shipments'} ? ' is-active'"
+                           th:attr="aria-current=${activeNav == 'shipments'} ? 'page' : null">
+                            <i data-lucide="package" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            <span>Quản lý vận đơn</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a th:href="@{/ops/hubs}" class="le-ops-nav-link"
+                           th:classappend="${activeNav == 'hubs'} ? ' is-active'"
+                           th:attr="aria-current=${activeNav == 'hubs'} ? 'page' : null">
+                            <i data-lucide="warehouse" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            <span>Mạng lưới Hub</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a th:href="@{/ops/users}" class="le-ops-nav-link"
+                           th:classappend="${activeNav == 'users'} ? ' is-active'"
+                           th:attr="aria-current=${activeNav == 'users'} ? 'page' : null">
+                            <i data-lucide="users" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            <span>Người dùng &amp; Nhân sự</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a th:href="@{/ops/fleet}" class="le-ops-nav-link"
+                           th:classappend="${activeNav == 'fleet'} ? ' is-active'"
+                           th:attr="aria-current=${activeNav == 'fleet'} ? 'page' : null">
+                            <i data-lucide="truck" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            <span>Đội xe &amp; Giao nhận</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a th:href="@{/ops/addresses}" class="le-ops-nav-link"
+                           th:classappend="${activeNav == 'addresses'} ? ' is-active'"
+                           th:attr="aria-current=${activeNav == 'addresses'} ? 'page' : null">
+                            <i data-lucide="map-pinned" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            <span>Danh mục địa chỉ</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Group 3: System -->
+            <div>
+                <div class="le-ops-nav-group-label">System</div>
+                <ul class="list-unstyled mb-0 d-flex flex-column gap-1">
+                    <li>
+                        <a th:href="@{/ops/finance}" class="le-ops-nav-link"
+                           th:classappend="${activeNav == 'finance'} ? ' is-active'"
+                           th:attr="aria-current=${activeNav == 'finance'} ? 'page' : null">
+                            <i data-lucide="wallet" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            <span>Tài chính &amp; Bảng giá</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a th:href="@{/ops/reports}" class="le-ops-nav-link"
+                           th:classappend="${activeNav == 'reports'} ? ' is-active'"
+                           th:attr="aria-current=${activeNav == 'reports'} ? 'page' : null">
+                            <i data-lucide="bar-chart-3" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            <span>Báo cáo &amp; Phân tích</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a th:href="@{/ops/settings}" class="le-ops-nav-link"
+                           th:classappend="${activeNav == 'settings'} ? ' is-active'"
+                           th:attr="aria-current=${activeNav == 'settings'} ? 'page' : null">
+                            <i data-lucide="settings" style="width:16px;height:16px;" aria-hidden="true"></i>
+                            <span>Cấu hình &amp; Nhật ký</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Admin Profile Footer -->
+    <div class="border-top p-3 d-flex align-items-center justify-content-between gap-2">
+        <div class="d-flex align-items-center gap-2 min-w-0">
+            <span class="le-ops-avatar"
+                  th:text="${currentUsername != null && !#strings.isEmpty(currentUsername) ? #strings.toUpperCase(#strings.substring(currentUsername, 0, #strings.length(currentUsername) >= 2 ? 2 : 1)) : 'AD'}">AD</span>
+            <div class="min-w-0">
+                <div class="fw-bold text-truncate" style="font-size:13px;color:var(--le-on-surface);"
+                     th:text="${currentUsername ?: 'Admin'}">Admin</div>
+                <div class="text-truncate" style="font-size:11px;color:var(--le-muted);"
+                     th:text="${currentRoles != null && !currentRoles.isEmpty() ? currentRoles[0] : 'ADMIN'}">ADMIN</div>
+            </div>
+        </div>
+        <button type="button" data-ops-logout class="le-btn-icon" title="Đăng xuất" aria-label="Đăng xuất">
+            <i data-lucide="log-out" style="width:16px;height:16px;" aria-hidden="true"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Combined Mobile Topbar + Offcanvas + Desktop Sticky Sidebar -->
+<th:block th:fragment="sidebar(activeNav, currentUsername, currentRoles)">
+    <!-- Mobile Topbar -->
+    <header class="le-ops-mobile-bar">
+        <a th:href="@{/ops/dashboard}" class="d-flex align-items-center gap-2 text-decoration-none">
+            <span class="le-ops-brand-icon" style="width:34px;height:34px;">
+                <i data-lucide="route" style="width:18px;height:18px;" aria-hidden="true"></i>
+            </span>
+            <span class="fw-bold" style="font-size:15px;color:var(--le-on-surface);">UTE EXPRESS</span>
+        </a>
+        <button class="le-btn-icon" type="button" data-bs-toggle="offcanvas" data-bs-target="#opsMobileDrawer"
+                aria-controls="opsMobileDrawer" aria-label="Mở menu quản trị">
+            <i data-lucide="menu" style="width:18px;height:18px;" aria-hidden="true"></i>
+        </button>
+    </header>
+
+    <!-- Mobile Offcanvas Drawer -->
+    <div class="offcanvas offcanvas-start" tabindex="-1" id="opsMobileDrawer" aria-labelledby="opsMobileDrawerLabel" style="width:272px;">
+        <div class="offcanvas-body p-0">
+            <div th:replace="~{ops/fragments/sidebar :: sidebarBody(${activeNav}, ${currentUsername}, ${currentRoles})}"></div>
+        </div>
+    </div>
+
+    <!-- Desktop Sidebar -->
+    <aside class="le-ops-sidebar le-ops-sidebar-desktop">
+        <div th:replace="~{ops/fragments/sidebar :: sidebarBody(${activeNav}, ${currentUsername}, ${currentRoles})}"></div>
+    </aside>
+</th:block>
+
+</html>

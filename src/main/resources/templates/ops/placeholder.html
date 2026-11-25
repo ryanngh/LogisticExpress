@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(
+          pageTitle=${sectionTitle + ' — UTE Express'},
+          extraCss=~{::extraCss},
+          content=~{::content},
+          extraScripts=~{::extraScripts}
+      )}">
+
+<th:block th:fragment="extraCss">
+    <link rel="stylesheet" th:href="@{/css/ops/ops.css}">
+</th:block>
+
+<th:block th:fragment="content">
+    <div class="le-ops-wrapper">
+        <th:block th:replace="~{ops/fragments/sidebar :: sidebar(${activeNav}, ${currentUsername}, ${currentRoles})}"></th:block>
+
+        <main id="main-content" class="le-ops-main">
+            <div class="mb-4">
+                <h1 class="le-ops-page-title" th:text="${sectionTitle}">Quản trị hệ thống</h1>
+                <p class="le-ops-page-subtitle" th:text="${sectionDescription}">Mô tả phân hệ</p>
+            </div>
+
+            <div class="le-card p-5 text-center">
+                <div class="d-inline-grid rounded-circle mb-3"
+                     style="width:56px;height:56px;background:var(--le-rose);color:var(--le-primary);place-items:center;">
+                    <i data-lucide="hammer" style="width:26px;height:26px;" aria-hidden="true"></i>
+                </div>
+                <h2 class="h5 fw-bold mb-2">Phân hệ đang được triển khai</h2>
+                <p class="text-muted mx-auto mb-4" style="max-width:460px;font-size:13px;">
+                    Khung điều hướng và phân quyền cho màn hình này đã sẵn sàng. Bạn có thể tiếp tục hoàn thiện giao diện chi tiết và kết nối API tại bước kế tiếp.
+                </p>
+                <a th:href="@{/ops/dashboard}" class="le-btn le-btn-primary">
+                    <i data-lucide="arrow-left" style="width:15px;height:15px;" aria-hidden="true"></i>
+                    <span>Quay về Dashboard</span>
+                </a>
+            </div>
+        </main>
+    </div>
+</th:block>
+
+<th:block th:fragment="extraScripts">
+    <script th:src="@{/js/ops/ops-common.js}"></script>
+</th:block>
+</html>
