@@ -25,8 +25,17 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID>, JpaSp
     Optional<Shipment> findByTrackingCode(String trackingCode);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Shipment s WHERE s.id = :id")
+    Optional<Shipment> findByIdForUpdate(@Param("id") UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Shipment s WHERE s.trackingCode = :trackingCode")
     Optional<Shipment> findByTrackingCodeForUpdate(@Param("trackingCode") String trackingCode);
+
+    List<Shipment> findByAssignedDeliveryShipperIdAndCurrentStatusIn(
+            UUID shipperId,
+            Collection<ShipmentStatus> statuses
+    );
 
     List<Shipment> findByCurrentHubIdAndCurrentStatusInAndDestHubIdNot(
             UUID currentHubId,
