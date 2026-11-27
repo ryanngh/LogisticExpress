@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(
+          pageTitle='Tài chính & Bảng giá — UTE Express',
+          extraCss=~{::extraCss},
+          content=~{::content},
+          extraScripts=~{::extraScripts}
+      )}">
+
+<th:block th:fragment="extraCss">
+    <link rel="stylesheet" th:href="@{/css/ops/ops.css}">
+</th:block>
+
+<th:block th:fragment="content">
+    <div class="le-ops-wrapper">
+        <th:block th:replace="~{ops/fragments/sidebar :: sidebar(${activeNav}, ${currentUsername}, ${currentRoles})}"></th:block>
+
+        <main id="main-content" class="le-ops-main"
+              th:attr="data-is-admin=${currentRoles != null && currentRoles.contains('ADMIN') ? 'true' : 'false'},
+                       data-can-view-rates=${currentRoles != null && (currentRoles.contains('ADMIN') || currentRoles.contains('MANAGER')) ? 'true' : 'false'}">
+
+            <!-- Page Header -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+                <div>
+                    <h1 class="le-ops-page-title">Tài chính &amp; Bảng giá</h1>
+                    <p class="le-ops-page-subtitle">
+                        Cấu hình gói dịch vụ, biểu phí vận chuyển theo vùng địa lý, công cụ tính thử cước và theo dõi dòng tiền thu hộ COD.
+                    </p>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button type="button" id="btn-refresh-finance" class="le-btn le-btn-tertiary">
+                        <i data-lucide="refresh-cw" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Làm mới</span>
+                    </button>
+                    <button type="button" id="btn-export-rates-csv" class="le-btn le-btn-tertiary">
+                        <i data-lucide="file-spreadsheet" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Xuất CSV</span>
+                    </button>
+                    <button type="button" id="btn-open-create-rate" class="le-btn le-btn-primary"
+                            th:if="${currentRoles != null && currentRoles.contains('ADMIN')}">
+                        <i data-lucide="plus" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Tạo biểu phí mới</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feedback Alert Banner -->
+            <div id="finance-alert" class="alert d-none mb-4" role="alert"></div>
+
+            <!-- 4 KPI Overview Cards -->
+            <section aria-label="Tổng quan tài chính và bảng giá" class="row g-3 mb-4">
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Tổng giá trị COD</span>
+                            <span class="le-badge le-badge-danger">Thu hộ</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" style="color:var(--le-wine);" id="fin-kpi-cod">--</div>
+                        <div class="le-kpi-sub" id="fin-kpi-cod-sub">Trên 50 vận đơn gần nhất</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Doanh thu cước phí</span>
+                            <span class="le-badge le-badge-success">Cước</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" style="color:var(--le-on-success-container);" id="fin-kpi-revenue">--</div>
+                        <div class="le-kpi-sub" id="fin-kpi-ins-sub">Phí khai giá: --</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Biểu phí đang áp dụng</span>
+                            <span class="le-badge le-badge-info" id="fin-kpi-rate-badge">Active</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="fin-kpi-active-rates">--</div>
+                        <div class="le-kpi-sub" id="fin-kpi-total-rates">Tổng phiên bản biểu phí: --</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Gói dịch vụ vận chuyển</span>
+                            <span class="le-badge le-badge-teal">Service</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="fin-kpi-services">--</div>
+                        <div class="le-kpi-sub" id="fin-kpi-services-sub">Tiêu chuẩn &amp; Hỏa tốc</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3 Underline Main Tabs -->
+            <div class="le-tabs mb-4" role="tablist" aria-label="Phân hệ tài chính và bảng giá">
+                <button type="button" role="tab" aria-selected="true" class="le-tab-btn is-active" data-fin-tab="panel-pricing">
+                    Bảng giá &amp; Dịch vụ (<span id="tab-rate-count">0</span>)
+                </button>
+                <button type="button" role="tab" aria-selected="false" class="le-tab-btn" data-fin-tab="panel-quote">
+                    Tính thử cước phí (Quote)
+                </button>
+                <button type="button" role="tab" aria-selected="false" class="le-tab-btn" data-fin-tab="panel-cod">
+                    Dòng tiền COD theo vận đơn (<span id="tab-cod-count">0</span>)
+                </button>
+            </div>
+
+            <!-- ================= TAB 1: PRICING & RATE CARDS ================= -->
+            <section id="panel-pricing" role="tabpanel" class="d-flex flex-column gap-4">
+
+                <!-- 1A. Service Types Management -->
+                <div class="le-card p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <div>
+                            <h2 class="h6 fw-bold mb-0">Gói dịch vụ vận chuyển (Service Types)</h2>
+                            <p class="small text-muted mb-0">Cấu hình hệ số quy đổi thể tích (D×R×C / hệ số) và thời gian cam kết SLA.</p>
+                        </div>
+                        <button type="button" id="btn-open-create-service" class="le-btn le-btn-tertiary"
+                                style="min-height:34px;padding:5px 12px;"
+                                th:if="${currentRoles != null && currentRoles.contains('ADMIN')}">
+                            <i data-lucide="plus" style="width:14px;height:14px;" aria-hidden="true"></i>
+                            <span>Thêm gói dịch vụ</span>
+                        </button>
+                    </div>
+                    <div id="service-types-grid" class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <div class="le-skeleton" style="height:92px;width:100%;"></div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="le-skeleton" style="height:92px;width:100%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1B. Rate Cards Table -->
+                <div class="le-card">
+                    <div class="p-3 p-lg-4 border-bottom">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-md-4">
+                                <select id="filter-rate-service" class="form-select" style="font-size:13px;" aria-label="Lọc theo gói dịch vụ">
+                                    <option value="">Tất cả gói dịch vụ</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <select id="filter-rate-zone" class="form-select" style="font-size:13px;" aria-label="Lọc theo vùng địa lý">
+                                    <option value="">Tất cả vùng cước</option>
+                                    <option value="INTRA_PROVINCE">Nội tỉnh (INTRA_PROVINCE)</option>
+                                    <option value="SAME_REGION">Nội miền (SAME_REGION)</option>
+                                    <option value="INTER_REGION">Liên miền (INTER_REGION)</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <select id="filter-rate-active" class="form-select" style="font-size:13px;" aria-label="Trạng thái hiệu lực">
+                                    <option value="ACTIVE" selected>Chỉ biểu phí đang áp dụng</option>
+                                    <option value="ALL">Tất cả (bao gồm lịch sử)</option>
+                                    <option value="INACTIVE">Chỉ phiên bản cũ (Lịch sử)</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-2 text-md-end small text-muted" id="rate-cards-count-label">
+                                Đang tải...
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table le-table">
+                            <thead>
+                                <tr>
+                                    <th>Dịch vụ</th>
+                                    <th>Vùng địa lý</th>
+                                    <th class="text-end">Mức cơ bản</th>
+                                    <th class="text-end">Bước nhảy tăng thêm</th>
+                                    <th class="text-end">Tỷ lệ phí hoàn</th>
+                                    <th>Hiệu lực từ</th>
+                                    <th>Trạng thái</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rate-cards-body">
+                                <tr>
+                                    <td colspan="8" class="py-4">
+                                        <div class="d-flex flex-column gap-2">
+                                            <div class="le-skeleton" style="height:24px;width:100%;"></div>
+                                            <div class="le-skeleton" style="height:24px;width:92%;"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= TAB 2: LIVE QUOTE CALCULATOR ================= -->
+            <section id="panel-quote" role="tabpanel" class="d-none">
+                <div class="row g-4">
+                    <div class="col-12 col-lg-7">
+                        <div class="le-card p-4">
+                            <h2 class="h6 fw-bold mb-1">Công cụ tính thử cước vận chuyển</h2>
+                            <p class="small text-muted mb-4">
+                                Kiểm tra trực tiếp công thức tính cước từ Pricing Engine (<code>POST /api/public/quote</code>) trước khi áp dụng cho Shop.
+                            </p>
+                            <div id="quote-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+
+                            <form id="quote-form">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="q-service" class="form-label small fw-semibold">Gói dịch vụ *</label>
+                                        <select id="q-service" class="form-select" required>
+                                            <option value="">-- Chọn gói dịch vụ --</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="q-fee-payer" class="form-label small fw-semibold">Người trả cước</label>
+                                        <select id="q-fee-payer" class="form-select">
+                                            <option value="SENDER">Shop gửi trả (SENDER)</option>
+                                            <option value="RECEIVER">Người nhận trả (RECEIVER)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label for="q-sender-prov" class="form-label small fw-semibold">Tỉnh / Thành gửi *</label>
+                                        <select id="q-sender-prov" class="form-select" required>
+                                            <option value="">-- Chọn Tỉnh / Thành gửi --</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="q-receiver-prov" class="form-label small fw-semibold">Tỉnh / Thành nhận *</label>
+                                        <select id="q-receiver-prov" class="form-select" required>
+                                            <option value="">-- Chọn Tỉnh / Thành nhận --</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-6 col-md-3">
+                                        <label for="q-weight" class="form-label small fw-semibold">Cân nặng (g) *</label>
+                                        <input type="number" id="q-weight" class="form-control le-tabular" min="1" value="1000" required>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label for="q-length" class="form-label small fw-semibold">Dài (cm)</label>
+                                        <input type="number" id="q-length" class="form-control le-tabular" min="1" value="20">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label for="q-width" class="form-label small fw-semibold">Rộng (cm)</label>
+                                        <input type="number" id="q-width" class="form-control le-tabular" min="1" value="15">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label for="q-height" class="form-label small fw-semibold">Cao (cm)</label>
+                                        <input type="number" id="q-height" class="form-control le-tabular" min="1" value="10">
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label for="q-declared" class="form-label small fw-semibold">Giá trị khai giá (VNĐ)</label>
+                                        <input type="number" id="q-declared" class="form-control le-tabular" min="0" step="10000" value="0">
+                                        <div class="form-text">Phí bảo hiểm tính theo giá trị hàng khai báo.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="q-cod" class="form-label small fw-semibold">Tiền thu hộ COD (VNĐ)</label>
+                                        <input type="number" id="q-cod" class="form-control le-tabular" min="0" step="10000" value="350000">
+                                    </div>
+
+                                    <div class="col-12 d-flex justify-content-end gap-2 pt-2">
+                                        <button type="submit" id="btn-calc-quote" class="le-btn le-btn-primary">
+                                            <i data-lucide="calculator" style="width:15px;height:15px;" aria-hidden="true"></i>
+                                            <span>Tính cước ngay</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-lg-5">
+                        <div class="le-card le-card-accent-top p-4 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h2 class="h6 fw-bold mb-0">Kết quả phân tích cước phí</h2>
+                                <span id="qr-zone-badge" class="le-badge le-badge-neutral">Chưa tính</span>
+                            </div>
+
+                            <div id="quote-result-empty" class="text-center py-5 text-muted small">
+                                Chọn tuyến gửi/nhận, khối lượng và bấm <strong>Tính cước ngay</strong> để xem chi tiết biểu phí áp dụng.
+                            </div>
+
+                            <div id="quote-result-body" class="d-none d-flex flex-column gap-3">
+                                <div class="row g-2 small">
+                                    <div class="col-4">
+                                        <div class="le-metric-box text-center p-2">
+                                            <div class="text-muted" style="font-size:11px;">Thực tế</div>
+                                            <div class="fw-bold le-tabular" id="qr-actual-w">—</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="le-metric-box text-center p-2">
+                                            <div class="text-muted" style="font-size:11px;">Quy đổi</div>
+                                            <div class="fw-bold le-tabular" id="qr-vol-w">—</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="le-metric-box is-rose text-center p-2">
+                                            <div style="font-size:11px;color:var(--le-wine);">Tính cước</div>
+                                            <div class="fw-bold le-tabular" style="color:var(--le-primary-hover);" id="qr-charge-w">—</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex flex-column gap-2 small">
+                                    <div class="le-ops-list-item">
+                                        <span class="text-muted">Cước vận chuyển cơ bản</span>
+                                        <strong class="le-tabular" id="qr-base-fee">0 đ</strong>
+                                    </div>
+                                    <div class="le-ops-list-item">
+                                        <span class="text-muted">Phí bảo hiểm / khai giá</span>
+                                        <strong class="le-tabular" id="qr-ins-fee">0 đ</strong>
+                                    </div>
+                                    <div class="le-ops-list-item">
+                                        <span class="fw-semibold">Tổng cước vận chuyển</span>
+                                        <strong class="le-tabular" id="qr-ship-fee">0 đ</strong>
+                                    </div>
+                                    <div class="le-ops-list-item">
+                                        <span class="text-muted">Phí hoàn hàng dự kiến</span>
+                                        <strong class="le-tabular" id="qr-return-fee">0 đ</strong>
+                                    </div>
+                                </div>
+
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <div class="le-metric-box is-rose">
+                                            <div class="small fw-semibold" style="color:var(--le-wine);">Thu người nhận</div>
+                                            <div class="fw-bold fs-5 le-tabular mt-1" style="color:var(--le-primary-hover);" id="qr-collect">0 đ</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="le-metric-box is-success">
+                                            <div class="small fw-semibold" style="color:var(--le-on-success-container);">Đối soát Shop</div>
+                                            <div class="fw-bold fs-5 le-tabular mt-1" style="color:var(--le-on-success-container);" id="qr-net-payout">0 đ</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= TAB 3: COD CASHFLOW TRACKING ================= -->
+            <section id="panel-cod" role="tabpanel" class="d-none">
+                <div class="le-card">
+                    <div class="p-3 p-lg-4 border-bottom">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-md-5">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white border-end-0 text-muted">
+                                        <i data-lucide="search" style="width:15px;height:15px;" aria-hidden="true"></i>
+                                    </span>
+                                    <input type="text" id="cod-search" class="form-control border-start-0 ps-0"
+                                           placeholder="Tìm mã vận đơn, tên người gửi hoặc người nhận..." style="font-size:13px;">
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <select id="cod-stage-filter" class="form-select" style="font-size:13px;" aria-label="Lọc nhóm dòng tiền COD">
+                                    <option value="">Tất cả nhóm dòng tiền COD</option>
+                                    <option value="DELIVERED">Đã giao — Đủ điều kiện đối soát</option>
+                                    <option value="IN_PROGRESS">Đang vận chuyển — COD cần thu</option>
+                                    <option value="FAILED_RETURN">Thất bại / Hoàn / Hủy</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-md-3 text-end">
+                                <button type="button" id="btn-export-cod-csv" class="le-btn le-btn-tertiary" style="min-height:36px;padding:6px 12px;">
+                                    <i data-lucide="download" style="width:14px;height:14px;" aria-hidden="true"></i>
+                                    <span>Xuất CSV COD</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table le-table">
+                            <thead>
+                                <tr>
+                                    <th>Mã vận đơn</th>
+                                    <th>Người gửi / Nhận</th>
+                                    <th>Trạng thái đơn</th>
+                                    <th>Trả cước</th>
+                                    <th class="text-end">Tiền COD</th>
+                                    <th class="text-end">Tổng cước</th>
+                                    <th class="text-end">Thu người nhận</th>
+                                    <th class="text-end">Đối soát Shop</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cod-table-body">
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">Đang tải dữ liệu dòng tiền COD...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modal 1: Create New Rate Card Version (ADMIN) -->
+    <div class="modal fade" id="rateCardModal" tabindex="-1" aria-labelledby="rateCardModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <form id="rate-card-form" novalidate>
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title h5 fw-bold" id="rateCardModalTitle">Tạo phiên bản biểu phí mới</h2>
+                            <div class="small text-muted">Biểu phí cũ của cùng (Dịch vụ, Vùng) sẽ tự động chuyển sang Lịch sử và giữ nguyên cước đơn cũ.</div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="rc-form-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="rc-service-id" class="form-label small fw-semibold">Gói dịch vụ *</label>
+                                <select id="rc-service-id" class="form-select" required></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="rc-zone-type" class="form-label small fw-semibold">Vùng địa lý *</label>
+                                <select id="rc-zone-type" class="form-select" required>
+                                    <option value="INTRA_PROVINCE">Nội tỉnh (INTRA_PROVINCE)</option>
+                                    <option value="SAME_REGION">Nội miền (SAME_REGION)</option>
+                                    <option value="INTER_REGION">Liên miền (INTER_REGION)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="rc-base-weight" class="form-label small fw-semibold">Khối lượng cơ bản (gram) *</label>
+                                <input type="number" id="rc-base-weight" class="form-control le-tabular" min="1" value="2000" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="rc-base-price" class="form-label small fw-semibold">Giá cơ bản (VNĐ) *</label>
+                                <input type="number" id="rc-base-price" class="form-control le-tabular" min="0" step="500" value="22000" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="rc-step-weight" class="form-label small fw-semibold">Bước nhảy khối lượng (gram) *</label>
+                                <input type="number" id="rc-step-weight" class="form-control le-tabular" min="1" value="500" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="rc-step-price" class="form-label small fw-semibold">Phụ phí mỗi bước nhảy (VNĐ) *</label>
+                                <input type="number" id="rc-step-price" class="form-control le-tabular" min="0" step="500" value="3500" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="rc-return-ratio" class="form-label small fw-semibold">Tỷ lệ phí hoàn (hệ số 0 – 1)</label>
+                                <input type="number" id="rc-return-ratio" class="form-control le-tabular" min="0" max="1" step="0.05" value="0.50">
+                                <div class="form-text">VD: 0.50 tương đương 50% cước cơ bản khi hoàn hàng.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" id="btn-save-rate" class="le-btn le-btn-primary">Ban hành biểu phí</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Create / Edit Service Type (ADMIN) -->
+    <div class="modal fade" id="serviceTypeModal" tabindex="-1" aria-labelledby="serviceTypeModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="service-type-form" novalidate>
+                    <div class="modal-header">
+                        <h2 class="modal-title h5 fw-bold" id="serviceTypeModalTitle">Cấu hình gói dịch vụ</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="st-form-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+                        <input type="hidden" id="st-id">
+
+                        <div class="mb-3">
+                            <label for="st-code" class="form-label small fw-semibold">Mã gói dịch vụ *</label>
+                            <select id="st-code" class="form-select font-monospace" required>
+                                <option value="STANDARD">STANDARD</option>
+                                <option value="EXPRESS">EXPRESS</option>
+                            </select>
+                            <div class="form-text">Hệ thống hỗ trợ 2 chuẩn mã dịch vụ: STANDARD và EXPRESS.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="st-name" class="form-label small fw-semibold">Tên gói dịch vụ *</label>
+                            <input type="text" id="st-name" class="form-control" maxlength="100" required placeholder="VD: Giao hàng Tiêu chuẩn">
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <label for="st-divisor" class="form-label small fw-semibold">Hệ số quy đổi thể tích *</label>
+                                <input type="number" id="st-divisor" class="form-control le-tabular" min="1" value="6000" required>
+                                <div class="form-text">VD: 6000 (Tiêu chuẩn), 5000 (Nhanh).</div>
+                            </div>
+                            <div class="col-6">
+                                <label for="st-sla" class="form-label small fw-semibold">Cam kết SLA (giờ) *</label>
+                                <input type="number" id="st-sla" class="form-control le-tabular" min="1" value="48" required>
+                                <div class="form-text">Thời gian toàn trình mục tiêu.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" id="btn-save-service" class="le-btn le-btn-primary">Lưu gói dịch vụ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="extraScripts">
+    <script th:src="@{/js/ops/ops-common.js}"></script>
+    <script th:src="@{/js/ops/finance.js}"></script>
+</th:block>
+</html>

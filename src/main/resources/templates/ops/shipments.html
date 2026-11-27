@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(
+          pageTitle='Quản lý vận đơn — UTE Express',
+          extraCss=~{::extraCss},
+          content=~{::content},
+          extraScripts=~{::extraScripts}
+      )}">
+
+<th:block th:fragment="extraCss">
+    <link rel="stylesheet" th:href="@{/css/ops/ops.css}">
+</th:block>
+
+<th:block th:fragment="content">
+    <div class="le-ops-wrapper">
+        <th:block th:replace="~{ops/fragments/sidebar :: sidebar(${activeNav}, ${currentUsername}, ${currentRoles})}"></th:block>
+
+        <main id="main-content" class="le-ops-main"
+              th:attr="data-can-assign=${currentRoles != null && (currentRoles.contains('ADMIN') || currentRoles.contains('DISPATCHER')) ? 'true' : 'false'},
+                       data-can-intake=${currentRoles != null && (currentRoles.contains('ADMIN') || currentRoles.contains('HUB_STAFF')) ? 'true' : 'false'}">
+
+            <!-- Page Header -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+                <div>
+                    <h1 class="le-ops-page-title">Quản lý vận đơn</h1>
+                    <p class="le-ops-page-subtitle">
+                        Tra cứu toàn bộ vận đơn, lọc theo trạng thái &amp; thời gian, điều phối Shipper lấy hàng và tiếp nhận tại Hub gốc.
+                    </p>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button type="button" id="btn-refresh-shipments" class="le-btn le-btn-tertiary">
+                        <i data-lucide="refresh-cw" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Làm mới</span>
+                    </button>
+                    <button type="button" id="btn-export-shipments-csv" class="le-btn le-btn-tertiary">
+                        <i data-lucide="file-spreadsheet" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Xuất CSV</span>
+                    </button>
+                    <button type="button" id="btn-open-quick-intake" class="le-btn le-btn-primary"
+                            th:if="${currentRoles != null && (currentRoles.contains('ADMIN') || currentRoles.contains('HUB_STAFF'))}">
+                        <i data-lucide="scan-barcode" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Tiếp nhận tại Hub</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feedback Alert Banner -->
+            <div id="shipments-alert" class="alert d-none mb-4" role="alert"></div>
+
+            <!-- 4 KPI Summary Cards -->
+            <section aria-label="Tổng quan vận đơn" class="row g-3 mb-4">
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Tổng vận đơn khớp lọc</span>
+                            <span class="le-badge le-badge-info">Live</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="stat-ship-total">--</div>
+                        <div class="le-kpi-sub" id="stat-ship-page-hint">Đang tải danh sách...</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Chờ lấy &amp; Đã lấy</span>
+                            <span class="le-badge le-badge-neutral">Đầu vào</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="stat-ship-pickup">--</div>
+                        <div class="le-kpi-sub">Mới tạo / Đã gán / Đã lấy (trang này)</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Đang trung chuyển &amp; Giao</span>
+                            <span class="le-badge le-badge-warning">Vận hành</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="stat-ship-transit">--</div>
+                        <div class="le-kpi-sub">Tại Hub, Linehaul &amp; Đang giao</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Tổng COD (trang hiện tại)</span>
+                            <span class="le-badge le-badge-danger">Thu hộ</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" style="color:var(--le-wine);" id="stat-ship-cod">--</div>
+                        <div class="le-kpi-sub" id="stat-ship-fee">Tổng cước: --</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Status Filter Pills -->
+            <div class="le-status-pills mb-3" role="group" aria-label="Lọc nhanh theo trạng thái">
+                <button type="button" class="le-pill-btn is-active" data-status-pill="">Tất cả</button>
+                <button type="button" class="le-pill-btn" data-status-pill="CREATED">Mới tạo</button>
+                <button type="button" class="le-pill-btn" data-status-pill="PICKUP_ASSIGNED">Đã gán lấy</button>
+                <button type="button" class="le-pill-btn" data-status-pill="PICKED_UP">Đã lấy hàng</button>
+                <button type="button" class="le-pill-btn" data-status-pill="AT_ORIGIN_HUB">Tại Hub gốc</button>
+                <button type="button" class="le-pill-btn" data-status-pill="AT_DEST_HUB">Tại Hub đích</button>
+                <button type="button" class="le-pill-btn" data-status-pill="OUT_FOR_DELIVERY">Đang giao</button>
+                <button type="button" class="le-pill-btn" data-status-pill="DELIVERED">Thành công</button>
+                <button type="button" class="le-pill-btn" data-status-pill="DELIVERY_FAILED">Giao thất bại</button>
+            </div>
+
+            <!-- Filter Bar + Shipments Data Table -->
+            <section class="le-card">
+                <form id="shipments-filter-form" class="p-3 p-lg-4 border-bottom">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-lg-3">
+                            <label for="f-tracking-code" class="form-label small fw-semibold mb-1">Mã vận đơn</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-muted">
+                                    <i data-lucide="search" style="width:15px;height:15px;" aria-hidden="true"></i>
+                                </span>
+                                <input type="text" id="f-tracking-code" class="form-control border-start-0 ps-0 font-monospace text-uppercase"
+                                       placeholder="VD: LE2611..." style="font-size:13px;">
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-lg-3">
+                            <label for="f-status" class="form-label small fw-semibold mb-1">Trạng thái</label>
+                            <select id="f-status" class="form-select" style="font-size:13px;">
+                                <option value="">Tất cả trạng thái</option>
+                                <option value="CREATED">Mới tạo (CREATED)</option>
+                                <option value="PICKUP_ASSIGNED">Đã gán lấy hàng (PICKUP_ASSIGNED)</option>
+                                <option value="PICKED_UP">Đã lấy hàng (PICKED_UP)</option>
+                                <option value="AT_ORIGIN_HUB">Tại Hub gốc (AT_ORIGIN_HUB)</option>
+                                <option value="IN_LINEHAUL">Đang trung chuyển (IN_LINEHAUL)</option>
+                                <option value="AT_DEST_HUB">Tại Hub đích (AT_DEST_HUB)</option>
+                                <option value="OUT_FOR_DELIVERY">Đang giao hàng (OUT_FOR_DELIVERY)</option>
+                                <option value="DELIVERED">Giao thành công (DELIVERED)</option>
+                                <option value="DELIVERY_FAILED">Giao thất bại (DELIVERY_FAILED)</option>
+                                <option value="REFUSED">Khách từ chối (REFUSED)</option>
+                                <option value="ON_HOLD_FOR_RETURN">Chờ cứu đơn (ON_HOLD_FOR_RETURN)</option>
+                                <option value="RETURN_INITIATED">Bắt đầu hoàn (RETURN_INITIATED)</option>
+                                <option value="IN_RETURN_TRANSIT">Đang hoàn hàng (IN_RETURN_TRANSIT)</option>
+                                <option value="RETURNED">Đã hoàn Shop (RETURNED)</option>
+                                <option value="CANCELLED">Đã hủy (CANCELLED)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-6 col-lg-2">
+                            <label for="f-from-date" class="form-label small fw-semibold mb-1">Từ ngày</label>
+                            <input type="date" id="f-from-date" class="form-control" style="font-size:13px;">
+                        </div>
+
+                        <div class="col-6 col-lg-2">
+                            <label for="f-to-date" class="form-label small fw-semibold mb-1">Đến ngày</label>
+                            <input type="date" id="f-to-date" class="form-control" style="font-size:13px;">
+                        </div>
+
+                        <div class="col-6 col-lg-2 d-flex gap-2">
+                            <button type="submit" class="le-btn le-btn-primary flex-fill" style="min-height:36px;padding:6px 12px;">
+                                Lọc
+                            </button>
+                            <button type="button" id="btn-reset-shipment-filters" class="le-btn-icon" title="Đặt lại bộ lọc" aria-label="Đặt lại bộ lọc">
+                                <i data-lucide="rotate-ccw" style="width:15px;height:15px;" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Data Table -->
+                <div class="table-responsive">
+                    <table class="table le-table">
+                        <thead>
+                            <tr>
+                                <th>Mã vận đơn &amp; Dịch vụ</th>
+                                <th>Người gửi &rarr; Người nhận</th>
+                                <th>Tuyến Hub</th>
+                                <th>Trạng thái</th>
+                                <th class="text-end">COD &amp; Cước phí</th>
+                                <th>Thời gian tạo</th>
+                                <th class="text-end">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shipments-table-body">
+                            <tr>
+                                <td colspan="7" class="py-4">
+                                    <div class="d-flex flex-column gap-2">
+                                        <div class="le-skeleton" style="height:24px;width:100%;"></div>
+                                        <div class="le-skeleton" style="height:24px;width:95%;"></div>
+                                        <div class="le-skeleton" style="height:24px;width:90%;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Footer -->
+                <div class="p-3 px-lg-4 border-top d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2 small text-muted">
+                        <span id="shipments-pagination-info">Hiển thị 0 vận đơn</span>
+                        <span>·</span>
+                        <label for="f-page-size" class="mb-0">Mỗi trang:</label>
+                        <select id="f-page-size" class="form-select form-select-sm" style="width:auto;">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+                    <nav aria-label="Phân trang vận đơn">
+                        <ul class="pagination pagination-sm mb-0" id="shipments-pagination"></ul>
+                    </nav>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modal 1: Assign Pickup Shipper (D1: ADMIN / DISPATCHER) -->
+    <div class="modal fade" id="assignPickupModal" tabindex="-1" aria-labelledby="assignPickupModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="assign-pickup-form">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title h5 fw-bold" id="assignPickupModalTitle">Gán Shipper lấy hàng</h2>
+                            <div class="small text-muted font-monospace" id="ap-tracking-label">—</div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="ap-form-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+                        <input type="hidden" id="ap-shipment-id">
+
+                        <div class="p-3 rounded bg-light border mb-3 small">
+                            <div><span class="text-muted">Hub gốc:</span> <strong id="ap-origin-hub">—</strong></div>
+                            <div class="mt-1"><span class="text-muted">Địa chỉ lấy:</span> <span id="ap-pickup-address">—</span></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="ap-shipper-id" class="form-label small fw-semibold">Chọn Shipper thuộc Hub gốc *</label>
+                            <select id="ap-shipper-id" class="form-select" required>
+                                <option value="">-- Đang tải danh sách Shipper... --</option>
+                            </select>
+                            <div class="form-text">Chỉ hiển thị tài khoản có vai trò Shipper đang hoạt động tại Hub gốc.</div>
+                        </div>
+
+                        <div>
+                            <label for="ap-note" class="form-label small fw-semibold">Ghi chú điều phối</label>
+                            <textarea id="ap-note" class="form-control" rows="2" placeholder="VD: Ưu tiên lấy trong ca sáng trước 11h..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" id="btn-submit-assign-pickup" class="le-btn le-btn-primary">Xác nhận gán Shipper</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Intake at Origin Hub (D3: ADMIN / HUB_STAFF) -->
+    <div class="modal fade" id="intakeModal" tabindex="-1" aria-labelledby="intakeModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="intake-form">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5 fw-bold" id="intakeModalTitle">Tiếp nhận vận đơn tại Hub gốc</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="intake-form-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+
+                        <div class="mb-3">
+                            <label for="in-tracking-code" class="form-label small fw-semibold">Mã vận đơn *</label>
+                            <input type="text" id="in-tracking-code" class="form-control font-monospace text-uppercase"
+                                   required placeholder="Quét hoặc nhập mã vận đơn (VD: LE2611...)">
+                            <div class="form-text">Áp dụng cho đơn trạng thái Mới tạo (gửi tại quầy) hoặc Đã lấy hàng (Shipper bàn giao về Hub).</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="in-hub-id" class="form-label small fw-semibold">Hub tiếp nhận</label>
+                            <select id="in-hub-id" class="form-select">
+                                <option value="">-- Tự động theo Hub mặc định của nhân viên / đơn --</option>
+                            </select>
+                            <div class="form-text">Admin có thể chọn đúng Hub gốc của vận đơn; nhân viên Hub mặc định dùng Hub trực thuộc.</div>
+                        </div>
+
+                        <div>
+                            <label for="in-note" class="form-label small fw-semibold">Ghi chú nhập kho</label>
+                            <textarea id="in-note" class="form-control" rows="2" placeholder="VD: Hàng nguyên vẹn, đủ tem nhãn..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" id="btn-submit-intake" class="le-btn le-btn-primary">Xác nhận nhập Hub</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="extraScripts">
+    <script th:src="@{/js/ops/ops-common.js}"></script>
+    <script th:src="@{/js/ops/shipments.js}"></script>
+</th:block>
+</html>

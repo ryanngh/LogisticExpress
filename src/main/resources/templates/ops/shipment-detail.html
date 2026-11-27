@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(
+          pageTitle=${'Chi tiết vận đơn ' + trackingCode + ' — UTE Express'},
+          extraCss=~{::extraCss},
+          content=~{::content},
+          extraScripts=~{::extraScripts}
+      )}">
+
+<th:block th:fragment="extraCss">
+    <link rel="stylesheet" th:href="@{/css/ops/ops.css}">
+</th:block>
+
+<th:block th:fragment="content">
+    <div class="le-ops-wrapper">
+        <th:block th:replace="~{ops/fragments/sidebar :: sidebar(${activeNav}, ${currentUsername}, ${currentRoles})}"></th:block>
+
+        <main id="main-content" class="le-ops-main"
+              th:attr="data-shipment-id=${shipment != null ? shipment.id() : ''},
+                       data-tracking-code=${shipment != null ? shipment.trackingCode() : trackingCode},
+                       data-origin-hub-id=${shipment != null && shipment.originHubId() != null ? shipment.originHubId() : ''},
+                       data-origin-hub-name=${shipment != null && shipment.originHubName() != null ? shipment.originHubName() : ''},
+                       data-actual-weight=${shipment != null && shipment.actualWeightGram() != null ? shipment.actualWeightGram() : ''},
+                       data-length-cm=${shipment != null && shipment.lengthCm() != null ? shipment.lengthCm() : ''},
+                       data-width-cm=${shipment != null && shipment.widthCm() != null ? shipment.widthCm() : ''},
+                       data-height-cm=${shipment != null && shipment.heightCm() != null ? shipment.heightCm() : ''}">
+
+            <!-- Back Link -->
+            <div class="mb-2 le-no-print">
+                <a th:href="@{/ops/shipments}" class="small fw-semibold text-decoration-none d-inline-flex align-items-center gap-1"
+                   style="color:var(--le-ink-nav);">
+                    <i data-lucide="arrow-left" style="width:15px;height:15px;" aria-hidden="true"></i>
+                    <span>Quay lại Danh sách vận đơn</span>
+                </a>
+            </div>
+
+            <!-- NOT FOUND STATE -->
+            <section th:if="${notFound}" class="le-card p-5 text-center my-4">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                     style="width:56px;height:56px;background:var(--le-rose);color:var(--le-primary-hover);">
+                    <i data-lucide="package-x" style="width:26px;height:26px;" aria-hidden="true"></i>
+                </div>
+                <h1 class="h4 fw-bold mb-2">Không tìm thấy vận đơn <span class="font-monospace" th:text="${trackingCode}">—</span></h1>
+                <p class="text-muted small mb-4">
+                    Mã vận đơn không tồn tại trong hệ thống hoặc đã bị nhập sai. Hãy kiểm tra lại mã hoặc quay về danh sách vận đơn.
+                </p>
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                    <a th:href="@{/ops/shipments}" class="le-btn le-btn-primary">Quay lại Danh sách vận đơn</a>
+                </div>
+            </section>
+
+            <!-- SHIPMENT FOUND CONTENT -->
+            <th:block th:if="${!notFound && shipment != null}">
+                <!-- Page Header & Operational Actions -->
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+                    <div>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <h1 class="le-ops-page-title font-monospace le-tabular" th:text="${shipment.trackingCode()}">LE2611...</h1>
+                            <button type="button" id="btn-copy-tracking" class="le-btn-icon le-no-print"
+                                    title="Sao chép mã vận đơn" aria-label="Sao chép mã vận đơn"
+                                    style="width:32px;height:32px;min-height:32px;">
+                                <i data-lucide="copy" style="width:14px;height:14px;" aria-hidden="true"></i>
+                            </button>
+                            <span id="detail-status-badge"
+                                  th:attr="data-status=${shipment.currentStatus().name()}"
+                                  class="le-badge le-badge-neutral"
+                                  th:text="${shipment.currentStatus().name()}">CREATED</span>
+                        </div>
+                        <p class="le-ops-page-subtitle">
+                            Dịch vụ: <strong th:text="${shipment.serviceTypeName()}">—</strong>
+                            (<span class="font-monospace" th:text="${shipment.serviceTypeCode()}">—</span>)
+                            · Tạo lúc <span class="le-tabular" th:text="${createdAtFormatted}">—</span>
+                        </p>
+                    </div>
+
+                    <div class="d-flex flex-wrap align-items-center gap-2 le-no-print">
+                        <button type="button" id="btn-print-label" class="le-btn le-btn-tertiary">
+                            <i data-lucide="printer" style="width:15px;height:15px;" aria-hidden="true"></i>
+                            <span>In nhãn / Barcode</span>
+                        </button>
+
+                        <button type="button" id="btn-detail-assign-pickup" class="le-btn le-btn-primary"
+                                th:if="${shipment.currentStatus().name() == 'CREATED' && currentRoles != null && (currentRoles.contains('ADMIN') || currentRoles.contains('DISPATCHER'))}">
+                            <i data-lucide="user-check" style="width:15px;height:15px;" aria-hidden="true"></i>
+                            <span>Gán Shipper lấy hàng</span>
+                        </button>
+
+                        <button type="button" id="btn-detail-intake" class="le-btn le-btn-primary"
+                                th:if="${(shipment.currentStatus().name() == 'CREATED' || shipment.currentStatus().name() == 'PICKED_UP') && currentRoles != null && (currentRoles.contains('ADMIN') || currentRoles.contains('HUB_STAFF'))}">
+                            <i data-lucide="package-check" style="width:15px;height:15px;" aria-hidden="true"></i>
+                            <span>Tiếp nhận tại Hub gốc</span>
+                        </button>
+
+                        <button type="button" id="btn-detail-reweigh" class="le-btn le-btn-primary"
+                                th:if="${canReweigh && currentRoles != null && (currentRoles.contains('ADMIN') || currentRoles.contains('HUB_STAFF'))}">
+                            <i data-lucide="scale" style="width:15px;height:15px;" aria-hidden="true"></i>
+                            <span>Cân đo lại tại Hub</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Feedback Alert Banner -->
+                <div id="detail-alert" class="alert d-none mb-4 le-no-print" role="alert"></div>
+
+                <!-- Tab Switcher -->
+                <div class="le-segment mb-4 le-no-print" role="tablist" aria-label="Chế độ xem chi tiết vận đơn">
+                    <button type="button" role="tab" aria-selected="true" class="le-segment-btn is-active" data-detail-tab="panel-overview">
+                        Chi tiết vận đơn
+                    </button>
+                    <button type="button" role="tab" aria-selected="false" class="le-segment-btn" data-detail-tab="panel-events">
+                        Nhật ký sự kiện (<span class="le-tabular" th:text="${events != null ? events.size() : 0}">0</span>)
+                    </button>
+                </div>
+
+                <!-- PANEL 1: OVERVIEW -->
+                <div id="panel-overview" role="tabpanel" class="d-flex flex-column gap-4">
+
+                    <!-- 1. Shipment Overview Information -->
+                    <section class="le-card p-4">
+                        <h2 class="h6 fw-bold mb-3">1. Thông tin chung vận đơn</h2>
+                        <div class="row g-3">
+                            <div class="col-6 col-md-4 col-xl-2">
+                                <div class="small text-muted">Mã vận đơn</div>
+                                <div class="fw-bold font-monospace small mt-1" th:text="${shipment.trackingCode()}">—</div>
+                            </div>
+                            <div class="col-6 col-md-4 col-xl-2">
+                                <div class="small text-muted">Gói dịch vụ</div>
+                                <div class="fw-semibold small mt-1" th:text="${shipment.serviceTypeName()}">—</div>
+                            </div>
+                            <div class="col-6 col-md-4 col-xl-2">
+                                <div class="small text-muted">Hub gốc</div>
+                                <div class="fw-semibold small mt-1" th:text="${shipment.originHubName() ?: 'Chưa xác định'}">—</div>
+                            </div>
+                            <div class="col-6 col-md-4 col-xl-2">
+                                <div class="small text-muted">Hub đích</div>
+                                <div class="fw-semibold small mt-1" th:text="${shipment.destHubName() ?: 'Chưa xác định'}">—</div>
+                            </div>
+                            <div class="col-6 col-md-4 col-xl-2">
+                                <div class="small text-muted">Hub hiện tại</div>
+                                <div class="fw-semibold small mt-1" style="color:var(--le-on-teal-container);"
+                                     th:text="${shipment.currentHubName() ?: 'Chưa vào Hub'}">—</div>
+                            </div>
+                            <div class="col-6 col-md-4 col-xl-2">
+                                <div class="small text-muted">Giao dự kiến</div>
+                                <div class="fw-semibold small le-tabular mt-1"
+                                     th:text="${shipment.scheduledDeliveryDate() != null ? shipment.scheduledDeliveryDate() : 'Theo chuẩn SLA'}">—</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 2. Sender & Receiver | 3. Package & Codes -->
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-6">
+                            <section class="le-card p-4 h-100">
+                                <h2 class="h6 fw-bold mb-3">2. Người gửi &amp; Người nhận</h2>
+                                <div class="row g-3">
+                                    <div class="col-12 col-sm-6">
+                                        <div class="le-metric-box">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="small fw-bold text-uppercase text-muted" style="font-size:11px;">Người gửi (Pickup)</span>
+                                                <span class="le-badge le-badge-neutral" style="font-size:10px;"
+                                                      th:if="${shipment.pickupAddress() != null && shipment.pickupAddress().normalizationStatus() != null}"
+                                                      th:text="${shipment.pickupAddress().normalizationStatus().name()}">VERIFIED</span>
+                                            </div>
+                                            <div class="fw-bold mt-1" th:text="${shipment.senderName()}">—</div>
+                                            <div class="small text-muted font-monospace" th:text="${shipment.senderPhone()}">—</div>
+                                            <div class="small mt-2 text-muted"
+                                                 th:text="${pickupAddressText}">—</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-sm-6">
+                                        <div class="le-metric-box">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="small fw-bold text-uppercase text-muted" style="font-size:11px;">Người nhận (Delivery)</span>
+                                                <span class="le-badge le-badge-neutral" style="font-size:10px;"
+                                                      th:if="${shipment.deliveryAddress() != null && shipment.deliveryAddress().normalizationStatus() != null}"
+                                                      th:text="${shipment.deliveryAddress().normalizationStatus().name()}">VERIFIED</span>
+                                            </div>
+                                            <div class="fw-bold mt-1" th:text="${shipment.receiverName()}">—</div>
+                                            <div class="small text-muted font-monospace" th:text="${shipment.receiverPhone()}">—</div>
+                                            <div class="small mt-2 text-muted"
+                                                 th:text="${deliveryAddressText}">—</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        <div class="col-12 col-lg-6">
+                            <section class="le-card p-4 h-100">
+                                <h2 class="h6 fw-bold mb-3">3. Kiện hàng &amp; Tem mã vạch</h2>
+                                <div class="row g-3 align-items-center">
+                                    <div class="col-12 col-sm-7">
+                                        <div class="row g-2 small">
+                                            <div class="col-6">
+                                                <div class="text-muted">Cân thực tế</div>
+                                                <div class="fw-bold le-tabular" th:text="${#numbers.formatInteger(shipment.actualWeightGram() ?: 0, 1, 'POINT') + ' g'}">0 g</div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="text-muted">KL tính cước</div>
+                                                <div class="fw-bold le-tabular" style="color:var(--le-primary-hover);"
+                                                     th:text="${#numbers.formatInteger(shipment.chargeableWeightGram() ?: 0, 1, 'POINT') + ' g'}">0 g</div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="text-muted">Kích thước (D×R×C)</div>
+                                                <div class="fw-semibold le-tabular"
+                                                     th:text="${(shipment.lengthCm() ?: 0) + ' × ' + (shipment.widthCm() ?: 0) + ' × ' + (shipment.heightCm() ?: 0) + ' cm'}">—</div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="text-muted">Giá trị khai giá</div>
+                                                <div class="fw-semibold le-tabular" th:text="${declaredValueFormatted}">0 đ</div>
+                                            </div>
+                                            <div class="col-12" th:if="${shipment.deliveryTimeWindowStart() != null && shipment.deliveryTimeWindowEnd() != null}">
+                                                <div class="text-muted">Khung giờ hẹn giao</div>
+                                                <div class="fw-semibold le-tabular"
+                                                     th:text="${shipment.deliveryTimeWindowStart() + ':00 – ' + shipment.deliveryTimeWindowEnd() + ':00'}">—</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-sm-5">
+                                        <div class="le-code-preview">
+                                            <img th:if="${qrCodeBase64 != null && !#strings.isEmpty(qrCodeBase64)}"
+                                                 th:src="${'data:image/png;base64,' + qrCodeBase64}"
+                                                 alt="QR Code vận đơn"
+                                                 style="width:104px;height:104px;object-fit:contain;" class="mb-2">
+                                            <img th:if="${barcodeBase64 != null && !#strings.isEmpty(barcodeBase64)}"
+                                                 th:src="${'data:image/png;base64,' + barcodeBase64}"
+                                                 alt="Barcode vận đơn"
+                                                 style="max-width:100%;height:42px;object-fit:contain;">
+                                            <div class="font-monospace small fw-bold mt-1" th:text="${shipment.trackingCode()}">—</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <!-- 4. Financial Information (Primary Top Accent) -->
+                    <section class="le-card le-card-accent-top p-4">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <h2 class="h6 fw-bold mb-0">4. Thông tin tài chính &amp; Thu hộ COD</h2>
+                            <span class="le-badge le-badge-neutral"
+                                  th:text="${shipment.feePayer() != null && shipment.feePayer().name() == 'RECEIVER' ? 'Người trả cước: Người nhận (RECEIVER)' : 'Người trả cước: Shop gửi (SENDER)'}">
+                                Người trả cước
+                            </span>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-6 col-md-4 col-xl">
+                                <div class="le-metric-box">
+                                    <div class="small text-muted">Tiền thu hộ COD</div>
+                                    <div class="fw-bold fs-6 le-tabular mt-1" th:text="${codFormatted}">0 đ</div>
+                                    <div class="small text-muted">Giá trị thu hộ Shop</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-4 col-xl">
+                                <div class="le-metric-box">
+                                    <div class="small text-muted">Cước cơ bản</div>
+                                    <div class="fw-bold fs-6 le-tabular mt-1" th:text="${baseFeeFormatted}">0 đ</div>
+                                    <div class="small text-muted" th:text="${'Phí hoàn dự kiến: ' + returnFeeFormatted}">Phí hoàn: 0 đ</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-4 col-xl">
+                                <div class="le-metric-box">
+                                    <div class="small text-muted">Phí bảo hiểm + Tổng cước</div>
+                                    <div class="fw-bold fs-6 le-tabular mt-1" th:text="${shippingFeeFormatted}">0 đ</div>
+                                    <div class="small text-muted" th:text="${'Trong đó khai giá: ' + insuranceFeeFormatted}">Khai giá: 0 đ</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-6 col-xl">
+                                <div class="le-metric-box is-rose">
+                                    <div class="small fw-semibold" style="color:var(--le-wine);">Thu người nhận (Collect)</div>
+                                    <div class="fw-bold fs-5 le-tabular mt-1" style="color:var(--le-primary-hover);" th:text="${amountToCollectFormatted}">0 đ</div>
+                                    <div class="small" style="color:var(--le-wine);"
+                                         th:text="${shipment.feePayer() != null && shipment.feePayer().name() == 'RECEIVER' ? '= COD + Tổng cước' : '= COD (Shop chịu cước)'}">—</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-6 col-xl">
+                                <div class="le-metric-box is-success">
+                                    <div class="small fw-semibold" style="color:var(--le-on-success-container);">Ước tính đối soát Shop</div>
+                                    <div class="fw-bold fs-5 le-tabular mt-1" style="color:var(--le-on-success-container);" th:text="${netPayoutFormatted}">0 đ</div>
+                                    <div class="small" style="color:var(--le-on-success-container);"
+                                         th:text="${shipment.feePayer() != null && shipment.feePayer().name() == 'RECEIVER' ? '= COD' : '= COD − Tổng cước'}">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 5. Timeline | 6. Dispatch & Delivery Exceptions -->
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-7">
+                            <section class="le-card p-4 h-100">
+                                <h2 class="h6 fw-bold mb-4">5. Hành trình vận đơn (Tracking Timeline)</h2>
+                                <div th:if="${events == null || events.isEmpty()}" class="text-muted small py-3">
+                                    Chưa có sự kiện hành trình nào được ghi nhận.
+                                </div>
+                                <ol th:if="${events != null && !events.isEmpty()}" class="le-timeline">
+                                    <li th:each="ev, stat : ${events}"
+                                        class="le-timeline-item"
+                                        th:classappend="${stat.first} ? ' is-latest' : ''">
+                                        <span class="le-timeline-dot"></span>
+                                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                                <span class="fw-bold small"
+                                                      th:attr="data-status-label=${ev.status().name()}"
+                                                      th:text="${ev.status().name()}">CREATED</span>
+                                                <span th:if="${stat.first}" class="le-badge le-badge-danger" style="font-size:10px;">Mới nhất</span>
+                                                <span th:if="${ev.reasonCode() != null && !#strings.isEmpty(ev.reasonCode())}"
+                                                      class="badge text-bg-light border font-monospace" style="font-size:10px;"
+                                                      th:text="${ev.reasonCode()}">CODE</span>
+                                            </div>
+                                            <span class="small text-muted le-tabular" th:text="${eventTimes[ev.id()]}">—</span>
+                                        </div>
+                                        <p class="small mb-1 mt-1" style="color:var(--le-ink-body);"
+                                           th:if="${ev.note() != null && !#strings.isEmpty(ev.note())}"
+                                           th:text="${ev.note()}">Ghi chú</p>
+                                        <div class="small text-muted">
+                                            <span th:if="${ev.hubName() != null}" th:text="${'Hub: ' + ev.hubName()}">Hub</span>
+                                            <span th:if="${ev.lat() != null && ev.lng() != null}"
+                                                  th:text="${(ev.hubName() != null ? ' · ' : '') + 'GPS: ' + ev.lat() + ', ' + ev.lng()}">GPS</span>
+                                        </div>
+                                    </li>
+                                </ol>
+                            </section>
+                        </div>
+
+                        <div class="col-12 col-lg-5 d-flex flex-column gap-4">
+                            <section class="le-card p-4">
+                                <h2 class="h6 fw-bold mb-3">6. Điều phối &amp; Chỉ số giao nhận</h2>
+                                <div class="d-flex flex-column gap-2 small">
+                                    <div class="le-ops-list-item">
+                                        <span class="text-muted">Số lần lấy hàng (Pickup attempts)</span>
+                                        <strong class="le-tabular" th:text="${shipment.pickupAttemptCount() ?: 0}">0</strong>
+                                    </div>
+                                    <div class="le-ops-list-item">
+                                        <span class="text-muted">Số lần giao hàng (Delivery attempts)</span>
+                                        <strong class="le-tabular" th:text="${shipment.attemptCount() ?: 0}">0</strong>
+                                    </div>
+                                    <div class="le-ops-list-item">
+                                        <span class="text-muted">Số lần cứu đơn (Rescue)</span>
+                                        <strong class="le-tabular" th:text="${shipment.rescueCount() ?: 0}">0</strong>
+                                    </div>
+                                    <div class="le-ops-list-item">
+                                        <span class="text-muted">Hoàn tất giao lúc</span>
+                                        <strong class="le-tabular" th:text="${deliveredAtFormatted}">—</strong>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="le-card p-4">
+                                <h2 class="h6 fw-bold mb-3">Tình trạng ngoại lệ &amp; Cảnh báo</h2>
+                                <div th:if="${isFailureOrReturn}" class="le-metric-box is-rose">
+                                    <div class="fw-bold small mb-1" style="color:var(--le-primary-hover);">
+                                        Vận đơn đang ở trạng thái ngoại lệ / hoàn / hủy
+                                    </div>
+                                    <div class="small" style="color:var(--le-wine);">
+                                        Trạng thái hiện tại: <strong th:text="${shipment.currentStatus().name()}">—</strong>.
+                                        Kiểm tra nhật ký sự kiện để xem mã lý do và xử lý cứu đơn hoặc hoàn hàng theo quy trình.
+                                    </div>
+                                </div>
+                                <div th:if="${!isFailureOrReturn}" class="le-metric-box">
+                                    <div class="fw-semibold small mb-1">Chưa ghi nhận ngoại lệ giao hàng</div>
+                                    <div class="small text-muted">
+                                        Vận đơn đang đi đúng quy trình vận hành bình thường. Mọi sự cố cân đo lệch, giao thất bại hoặc khách từ chối sẽ hiển thị nổi bật tại đây.
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANEL 2: SHIPMENT EVENTS FULL TABLE -->
+                <section id="panel-events" role="tabpanel" class="le-card p-4 d-none">
+                    <h2 class="h6 fw-bold mb-3">Nhật ký sự kiện đầy đủ (Shipment Events)</h2>
+                    <div class="table-responsive">
+                        <table class="table le-table">
+                            <thead>
+                                <tr>
+                                    <th>Thời gian</th>
+                                    <th>Trạng thái</th>
+                                    <th>Mã sự kiện / Lý do</th>
+                                    <th>Hub</th>
+                                    <th>Ghi chú chi tiết</th>
+                                    <th>Tọa độ GPS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:if="${events == null || events.isEmpty()}">
+                                    <td colspan="6" class="text-center py-4 text-muted">Chưa có sự kiện nào.</td>
+                                </tr>
+                                <tr th:each="ev : ${events}">
+                                    <td class="small le-tabular text-muted" th:text="${eventTimes[ev.id()]}">—</td>
+                                    <td>
+                                        <span class="le-badge le-badge-neutral"
+                                              th:attr="data-status=${ev.status().name()}"
+                                              th:text="${ev.status().name()}">—</span>
+                                    </td>
+                                    <td class="font-monospace small" th:text="${ev.reasonCode() ?: '—'}">—</td>
+                                    <td class="small" th:text="${ev.hubName() ?: '—'}">—</td>
+                                    <td class="small" th:text="${ev.note() ?: '—'}">—</td>
+                                    <td class="font-monospace small text-muted"
+                                        th:text="${ev.lat() != null && ev.lng() != null ? ev.lat() + ', ' + ev.lng() : '—'}">—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </th:block>
+
+        </main>
+    </div>
+
+    <!-- Modal 1: Assign Pickup Shipper -->
+    <div class="modal fade" id="detailAssignModal" tabindex="-1" aria-labelledby="detailAssignModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="detail-assign-form">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5 fw-bold" id="detailAssignModalTitle">Gán Shipper lấy hàng</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="da-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+                        <div class="mb-3">
+                            <label for="da-shipper-id" class="form-label small fw-semibold">Chọn Shipper tại Hub gốc *</label>
+                            <select id="da-shipper-id" class="form-select" required>
+                                <option value="">-- Đang tải danh sách Shipper... --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="da-note" class="form-label small fw-semibold">Ghi chú điều phối</label>
+                            <textarea id="da-note" class="form-control" rows="2" placeholder="Ghi chú cho Shipper..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" id="btn-da-submit" class="le-btn le-btn-primary">Xác nhận gán</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Intake at Origin Hub -->
+    <div class="modal fade" id="detailIntakeModal" tabindex="-1" aria-labelledby="detailIntakeModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="detail-intake-form">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5 fw-bold" id="detailIntakeModalTitle">Tiếp nhận vận đơn tại Hub gốc</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="di-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+                        <p class="small text-muted mb-3">
+                            Xác nhận tiếp nhận vận đơn <strong class="font-monospace" th:text="${trackingCode}">—</strong> vào kho Hub gốc.
+                        </p>
+                        <div>
+                            <label for="di-note" class="form-label small fw-semibold">Ghi chú nhập kho</label>
+                            <textarea id="di-note" class="form-control" rows="2" placeholder="VD: Đã kiểm tra ngoại quan, nguyên vẹn..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" id="btn-di-submit" class="le-btn le-btn-primary">Xác nhận nhập Hub</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Reweigh at Origin Hub (D4) -->
+    <div class="modal fade" id="detailReweighModal" tabindex="-1" aria-labelledby="detailReweighModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="detail-reweigh-form">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5 fw-bold" id="detailReweighModalTitle">Cân đo lại thực tế tại Hub</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="dr-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+                        <div id="dr-result" class="alert alert-success d-none py-2 small" role="alert"></div>
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="dr-weight" class="form-label small fw-semibold">Cân nặng thực tế (gram) *</label>
+                                <input type="number" id="dr-weight" class="form-control le-tabular" min="1" required>
+                            </div>
+                            <div class="col-4">
+                                <label for="dr-length" class="form-label small fw-semibold">Dài (cm)</label>
+                                <input type="number" id="dr-length" class="form-control le-tabular" min="1">
+                            </div>
+                            <div class="col-4">
+                                <label for="dr-width" class="form-label small fw-semibold">Rộng (cm)</label>
+                                <input type="number" id="dr-width" class="form-control le-tabular" min="1">
+                            </div>
+                            <div class="col-4">
+                                <label for="dr-height" class="form-label small fw-semibold">Cao (cm)</label>
+                                <input type="number" id="dr-height" class="form-control le-tabular" min="1">
+                            </div>
+                            <div class="col-12">
+                                <label for="dr-note" class="form-label small fw-semibold">Ghi chú cân đo</label>
+                                <textarea id="dr-note" class="form-control" rows="2" placeholder="VD: Cân lại tại băng chuyền cổng #02..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" id="btn-dr-submit" class="le-btn le-btn-primary">Cập nhật &amp; Tính lại cước</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="extraScripts">
+    <script th:src="@{/js/ops/ops-common.js}"></script>
+    <script th:src="@{/js/ops/shipment-detail.js}"></script>
+</th:block>
+</html>

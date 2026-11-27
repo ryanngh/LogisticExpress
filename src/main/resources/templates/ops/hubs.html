@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(
+          pageTitle='Mạng lưới Hub & Bưu cục — UTE Express',
+          extraCss=~{::extraCss},
+          content=~{::content},
+          extraScripts=~{::extraScripts}
+      )}">
+
+<th:block th:fragment="extraCss">
+    <link rel="stylesheet" th:href="@{/css/ops/ops.css}">
+</th:block>
+
+<th:block th:fragment="content">
+    <div class="le-ops-wrapper">
+        <th:block th:replace="~{ops/fragments/sidebar :: sidebar(${activeNav}, ${currentUsername}, ${currentRoles})}"></th:block>
+
+        <main id="main-content" class="le-ops-main"
+              th:attr="data-is-admin=${currentRoles != null && currentRoles.contains('ADMIN') ? 'true' : 'false'}">
+
+            <!-- Page Header -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+                <div>
+                    <h1 class="le-ops-page-title">Mạng lưới &amp; Điểm Hub</h1>
+                    <p class="le-ops-page-subtitle">
+                        Quản trị Hub vùng, bưu cục địa phương, cấu trúc cấp bậc và phân vùng Phường/Xã phục vụ toàn quốc.
+                    </p>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button type="button" id="btn-refresh-hubs" class="le-btn le-btn-tertiary">
+                        <i data-lucide="refresh-cw" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Làm mới</span>
+                    </button>
+                    <button type="button" id="btn-export-hubs-csv" class="le-btn le-btn-tertiary">
+                        <i data-lucide="file-spreadsheet" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Xuất CSV</span>
+                    </button>
+                    <button type="button" id="btn-open-create-hub" class="le-btn le-btn-primary"
+                            th:if="${currentRoles != null && currentRoles.contains('ADMIN')}">
+                        <i data-lucide="plus" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Tạo Hub mới</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feedback Alert Banner -->
+            <div id="hubs-alert" class="alert d-none mb-4" role="alert"></div>
+
+            <!-- 4 KPI Overview Cards -->
+            <section aria-label="Tổng quan mạng lưới Hub" class="row g-3 mb-4">
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Tổng điểm Hub</span>
+                            <span class="le-btn-icon" style="width:28px;height:28px;min-height:28px;">
+                                <i data-lucide="warehouse" style="width:14px;height:14px;" aria-hidden="true"></i>
+                            </span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="stat-total-hubs">--</div>
+                        <div class="le-kpi-sub" id="stat-hub-breakdown">Đang tải dữ liệu mạng lưới...</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Hub Vùng (Regional)</span>
+                            <span class="le-badge le-badge-info">REGIONAL</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="stat-regional-hubs">--</div>
+                        <div class="le-kpi-sub">Trung tâm phân loại &amp; trung chuyển</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Bưu cục địa phương</span>
+                            <span class="le-badge le-badge-teal">LOCAL</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="stat-local-hubs">--</div>
+                        <div class="le-kpi-sub">Điểm lấy hàng &amp; giao chặng cuối</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card" id="kpi-coverage-card">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="le-kpi-label">Phường/Xã đã gán</span>
+                            <span class="le-badge le-badge-success" id="stat-coverage-badge">Phủ sóng</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="stat-assigned-wards">--</div>
+                        <div class="le-kpi-sub" id="stat-unassigned-hubs-hint">Số Phường/Xã đã phân vùng Hub</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Underline Tabs -->
+            <div class="le-tabs mb-4" role="tablist" aria-label="Phân hệ mạng lưới Hub">
+                <button type="button" role="tab" aria-selected="true" class="le-tab-btn is-active" data-hub-tab="panel-directory">
+                    Danh sách Hub (<span id="tab-hub-count">0</span>)
+                </button>
+                <button type="button" role="tab" aria-selected="false" class="le-tab-btn" data-hub-tab="panel-coverage">
+                    Phân vùng Phường/Xã
+                </button>
+                <button type="button" role="tab" aria-selected="false" class="le-tab-btn" data-hub-tab="panel-hierarchy">
+                    Sơ đồ phân cấp Hub
+                </button>
+            </div>
+
+            <!-- TAB 1: DIRECTORY -->
+            <section id="panel-directory" role="tabpanel">
+                <div class="le-card">
+                    <!-- Filter Bar -->
+                    <div class="p-3 p-lg-4 border-bottom">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-lg-5">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white border-end-0 text-muted">
+                                        <i data-lucide="search" style="width:15px;height:15px;" aria-hidden="true"></i>
+                                    </span>
+                                    <input type="text" id="filter-hub-search" class="form-control border-start-0 ps-0"
+                                           placeholder="Tìm mã Hub, tên Hub hoặc mã Phường/Xã..." style="font-size:13px;">
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-3">
+                                <select id="filter-hub-level" class="form-select" style="font-size:13px;" aria-label="Lọc theo cấp Hub">
+                                    <option value="">Tất cả cấp Hub</option>
+                                    <option value="REGIONAL_HUB">Hub Vùng (REGIONAL_HUB)</option>
+                                    <option value="LOCAL_POST_OFFICE">Bưu cục địa phương (LOCAL_POST_OFFICE)</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-lg-3">
+                                <select id="filter-hub-parent" class="form-select" style="font-size:13px;" aria-label="Lọc theo Hub cấp trên">
+                                    <option value="">Tất cả Hub cấp trên</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-lg-1 d-grid">
+                                <button type="button" id="btn-reset-hub-filters" class="le-btn-icon w-100" title="Đặt lại bộ lọc" aria-label="Đặt lại bộ lọc">
+                                    <i data-lucide="rotate-ccw" style="width:15px;height:15px;" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table Subheader -->
+                    <div class="px-3 px-lg-4 py-2.5 border-bottom bg-light d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <span class="small fw-semibold text-dark" id="hubs-count-label">Đang tải danh sách Hub...</span>
+                        <span class="small text-muted">Nhấp vào một dòng để mở bảng chi tiết bên phải</span>
+                    </div>
+
+                    <!-- Data Table -->
+                    <div class="table-responsive">
+                        <table class="table le-table">
+                            <thead>
+                                <tr>
+                                    <th>Mã &amp; Tên Hub</th>
+                                    <th>Cấp Hub</th>
+                                    <th>Hub cấp trên</th>
+                                    <th>Tọa độ GPS</th>
+                                    <th>Phường/Xã phụ trách</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hubs-table-body">
+                                <tr>
+                                    <td colspan="6" class="py-4">
+                                        <div class="d-flex flex-column gap-2">
+                                            <div class="le-skeleton" style="height:24px;width:100%;"></div>
+                                            <div class="le-skeleton" style="height:24px;width:92%;"></div>
+                                            <div class="le-skeleton" style="height:24px;width:96%;"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: WARD COVERAGE EXPLORER -->
+            <section id="panel-coverage" role="tabpanel" class="d-none">
+                <div class="le-card">
+                    <div class="p-3 p-lg-4 border-bottom">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-4">
+                                <label for="cov-province" class="form-label small fw-semibold mb-1">Tỉnh / Thành phố</label>
+                                <select id="cov-province" class="form-select" style="font-size:13px;">
+                                    <option value="">-- Chọn Tỉnh / Thành phố --</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label for="cov-search" class="form-label small fw-semibold mb-1">Tìm Phường / Xã</label>
+                                <input type="text" id="cov-search" class="form-control" style="font-size:13px;"
+                                       placeholder="Nhập tên hoặc mã Phường/Xã...">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label for="cov-filter-assigned" class="form-label small fw-semibold mb-1">Trạng thái phân vùng</label>
+                                <select id="cov-filter-assigned" class="form-select" style="font-size:13px;">
+                                    <option value="">Tất cả Phường/Xã</option>
+                                    <option value="ASSIGNED">Đã có Hub phụ trách</option>
+                                    <option value="UNASSIGNED">Chưa có Hub phụ trách</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="px-3 px-lg-4 py-2.5 border-bottom bg-light d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <span class="small fw-semibold" id="cov-summary">Chọn Tỉnh/Thành phố để tra cứu vùng phục vụ Hub</span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table le-table">
+                            <thead>
+                                <tr>
+                                    <th>Mã Phường/Xã</th>
+                                    <th>Tên Phường / Xã</th>
+                                    <th>Tọa độ trung tâm</th>
+                                    <th>Hub phụ trách</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cov-table-body">
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">
+                                        Vui lòng chọn Tỉnh/Thành phố phía trên để xem danh sách Phường/Xã.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: HUB HIERARCHY TREE -->
+            <section id="panel-hierarchy" role="tabpanel" class="d-none">
+                <div id="hub-hierarchy-container" class="d-flex flex-column gap-3">
+                    <div class="le-card p-5 text-center text-muted">Đang tải sơ đồ phân cấp Hub...</div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Offcanvas Right Drawer: Hub Detail -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="hubDetailDrawer" aria-labelledby="hubDetailDrawerTitle" style="width:440px;max-width:95vw;">
+        <div class="offcanvas-header border-bottom">
+            <div>
+                <span class="le-badge le-badge-info mb-1" id="drawer-hub-level">REGIONAL_HUB</span>
+                <h2 class="offcanvas-title h5 fw-bold mb-0" id="hubDetailDrawerTitle">Chi tiết Hub</h2>
+                <div class="small text-muted font-monospace" id="drawer-hub-code">—</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Đóng"></button>
+        </div>
+        <div class="offcanvas-body d-flex flex-column gap-4">
+            <div class="row g-2">
+                <div class="col-6">
+                    <div class="le-metric-box">
+                        <div class="small text-muted">Hub cấp trên</div>
+                        <div class="fw-bold small mt-1" id="drawer-hub-parent">Không có (Cấp cao nhất)</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="le-metric-box">
+                        <div class="small text-muted">Phường/Xã phụ trách</div>
+                        <div class="fw-bold fs-5 le-tabular mt-1" id="drawer-hub-ward-count">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="le-metric-box">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small fw-semibold text-muted">Tọa độ địa lý (GPS)</span>
+                    <a id="drawer-hub-map-link" href="#" target="_blank" rel="noopener" class="small fw-semibold text-decoration-none" style="color:var(--le-primary);">
+                        Mở Google Maps &nearr;
+                    </a>
+                </div>
+                <div class="font-monospace small fw-semibold" id="drawer-hub-coords">—</div>
+                <div class="small text-muted mt-2" id="drawer-hub-timestamps">—</div>
+            </div>
+
+            <div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h3 class="h6 fw-bold mb-0">Bưu cục trực thuộc</h3>
+                    <span class="badge text-bg-light border le-tabular" id="drawer-children-count">0</span>
+                </div>
+                <div id="drawer-children-list" class="d-flex flex-column gap-2"></div>
+            </div>
+
+            <div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h3 class="h6 fw-bold mb-0">Mã Phường/Xã phụ trách</h3>
+                    <button type="button" id="drawer-btn-assign-wards" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
+                            style="color:var(--le-primary);"
+                            th:if="${currentRoles != null && currentRoles.contains('ADMIN')}">
+                        + Phân vùng
+                    </button>
+                </div>
+                <div id="drawer-wards-list" class="d-flex flex-wrap gap-1"></div>
+            </div>
+
+            <div class="mt-auto pt-3 border-top d-flex gap-2"
+                 th:if="${currentRoles != null && currentRoles.contains('ADMIN')}">
+                <button type="button" id="drawer-btn-edit" class="le-btn le-btn-primary flex-fill">
+                    <i data-lucide="pencil" style="width:14px;height:14px;" aria-hidden="true"></i>
+                    <span>Chỉnh sửa Hub</span>
+                </button>
+                <button type="button" id="drawer-btn-delete" class="le-btn le-btn-tertiary text-danger">
+                    <i data-lucide="trash-2" style="width:14px;height:14px;" aria-hidden="true"></i>
+                    <span>Xóa</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 1: Create / Edit Hub (ADMIN) -->
+    <div class="modal fade" id="hubFormModal" tabindex="-1" aria-labelledby="hubFormModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <form id="hub-form" novalidate>
+                    <div class="modal-header">
+                        <h2 class="modal-title h5 fw-bold" id="hubFormModalTitle">Tạo điểm Hub mới</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="hub-form-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+                        <input type="hidden" id="hf-id">
+
+                        <div class="row g-3">
+                            <div class="col-md-5">
+                                <label for="hf-code" class="form-label small fw-semibold">Mã Hub *</label>
+                                <input type="text" id="hf-code" class="form-control font-monospace text-uppercase"
+                                       maxlength="30" required placeholder="VD: HUB-HCM-TD">
+                                <div class="form-text">Tối đa 30 ký tự, tự động viết hoa.</div>
+                            </div>
+                            <div class="col-md-7">
+                                <label for="hf-name" class="form-label small fw-semibold">Tên Hub / Bưu cục *</label>
+                                <input type="text" id="hf-name" class="form-control" maxlength="150" required
+                                       placeholder="VD: Bưu cục Thủ Đức">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="hf-level" class="form-label small fw-semibold">Cấp Hub *</label>
+                                <select id="hf-level" class="form-select" required>
+                                    <option value="REGIONAL_HUB">Hub Vùng (REGIONAL_HUB)</option>
+                                    <option value="LOCAL_POST_OFFICE">Bưu cục địa phương (LOCAL_POST_OFFICE)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="hf-parent-id" class="form-label small fw-semibold">Hub cấp trên (Parent Hub)</label>
+                                <select id="hf-parent-id" class="form-select">
+                                    <option value="">-- Không có Hub cấp trên --</option>
+                                </select>
+                                <div class="form-text" id="hf-parent-hint">Bưu cục địa phương chỉ được gán trực thuộc một Hub Vùng.</div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="hf-lat" class="form-label small fw-semibold">Vĩ độ (Latitude) *</label>
+                                <input type="number" step="any" id="hf-lat" class="form-control le-tabular" required
+                                       placeholder="VD: 10.8506">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="hf-lng" class="form-label small fw-semibold">Kinh độ (Longitude) *</label>
+                                <input type="number" step="any" id="hf-lng" class="form-control le-tabular" required
+                                       placeholder="VD: 106.7719">
+                            </div>
+
+                            <div class="col-12">
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <span class="small text-muted">Điền nhanh tọa độ mẫu:</span>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-preset-coord="10.8506,106.7719">TP.HCM (Thủ Đức)</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-preset-coord="21.0285,105.8542">Hà Nội</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-preset-coord="16.0544,108.2022">Đà Nẵng</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-preset-coord="10.0452,105.7469">Cần Thơ</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" id="btn-save-hub" class="le-btn le-btn-primary">Lưu thông tin Hub</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Assign Wards to Hub (ADMIN) -->
+    <div class="modal fade" id="assignWardsModal" tabindex="-1" aria-labelledby="assignWardsModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <form id="assign-wards-form">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title h5 fw-bold" id="assignWardsModalTitle">Phân vùng Phường/Xã cho Hub</h2>
+                            <div class="small text-muted" id="aw-hub-label">—</div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="aw-form-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+                        <input type="hidden" id="aw-hub-id">
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label for="aw-province" class="form-label small fw-semibold mb-1">Chọn Tỉnh / Thành phố</label>
+                                <select id="aw-province" class="form-select" style="font-size:13px;">
+                                    <option value="">-- Chọn Tỉnh / Thành phố --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="aw-search" class="form-label small fw-semibold mb-1">Lọc nhanh Phường / Xã</label>
+                                <input type="text" id="aw-search" class="form-control" style="font-size:13px;"
+                                       placeholder="Gõ tên hoặc mã Phường/Xã...">
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small fw-semibold">Danh sách Phường / Xã</span>
+                            <div class="d-flex gap-2">
+                                <button type="button" id="btn-aw-select-visible" class="btn btn-link btn-sm p-0 text-decoration-none">Chọn đang hiện</button>
+                                <span class="text-muted">·</span>
+                                <button type="button" id="btn-aw-clear-visible" class="btn btn-link btn-sm p-0 text-decoration-none text-secondary">Bỏ chọn đang hiện</button>
+                            </div>
+                        </div>
+
+                        <div id="aw-ward-list" class="le-ward-picker-list mb-3">
+                            <div class="p-4 text-center text-muted small">Chọn Tỉnh/Thành phố để hiển thị Phường/Xã.</div>
+                        </div>
+
+                        <div class="p-3 rounded bg-light border">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small fw-semibold">Đã chọn (<span id="aw-selected-count" class="le-tabular">0</span> Phường/Xã)</span>
+                                <button type="button" id="btn-aw-clear-all" class="btn btn-link btn-sm p-0 text-danger text-decoration-none">Xóa tất cả đã chọn</button>
+                            </div>
+                            <div id="aw-selected-chips" class="d-flex flex-wrap gap-1">
+                                <span class="small text-muted">Chưa chọn Phường/Xã nào.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" id="btn-save-wards" class="le-btn le-btn-primary">Lưu phân vùng</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Confirm Delete Hub (ADMIN) -->
+    <div class="modal fade" id="deleteHubModal" tabindex="-1" aria-labelledby="deleteHubModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5 fw-bold text-danger" id="deleteHubModalTitle">Xác nhận xóa Hub</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="delete-hub-error" class="alert alert-danger d-none py-2 small" role="alert"></div>
+                    <p class="mb-2">Bạn có chắc muốn xóa điểm Hub <strong id="del-hub-name">—</strong>?</p>
+                    <p class="small text-muted mb-0">
+                        Các Phường/Xã đang gán cho Hub này sẽ được gỡ phân vùng tự động. Nếu Hub đang có bưu cục con trực thuộc, hệ thống sẽ từ chối xóa để bảo toàn dữ liệu.
+                    </p>
+                    <input type="hidden" id="del-hub-id">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" id="btn-confirm-delete-hub" class="le-btn le-btn-primary">Xác nhận xóa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="extraScripts">
+    <script th:src="@{/js/ops/ops-common.js}"></script>
+    <script th:src="@{/js/ops/hubs.js}"></script>
+</th:block>
+</html>

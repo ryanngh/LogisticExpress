@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(
+          pageTitle='Quản lý người dùng & Nhân sự — UTE Express',
+          extraCss=~{::extraCss},
+          content=~{::content},
+          extraScripts=~{::extraScripts}
+      )}">
+
+<th:block th:fragment="extraCss">
+    <link rel="stylesheet" th:href="@{/css/ops/ops.css}">
+</th:block>
+
+<th:block th:fragment="content">
+    <div class="le-ops-wrapper">
+        <th:block th:replace="~{ops/fragments/sidebar :: sidebar(${activeNav}, ${currentUsername}, ${currentRoles})}"></th:block>
+
+        <main id="main-content" class="le-ops-main"
+              th:attr="data-is-admin=${currentRoles != null && currentRoles.contains('ADMIN') ? 'true' : 'false'}">
+
+            <!-- Page Header -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+                <div>
+                    <h1 class="le-ops-page-title">Quản lý người dùng &amp; Nhân sự</h1>
+                    <p class="le-ops-page-subtitle">
+                        Quản trị tài khoản nhân viên nội bộ, phân quyền RBAC và cấu hình Hub, phương tiện Shipper (J2).
+                    </p>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button type="button" id="btn-export-csv" class="le-btn le-btn-tertiary">
+                        <i data-lucide="file-spreadsheet" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Xuất CSV</span>
+                    </button>
+                    <button type="button" id="btn-open-create-staff" class="le-btn le-btn-primary"
+                            th:if="${currentRoles != null && currentRoles.contains('ADMIN')}">
+                        <i data-lucide="user-plus" style="width:15px;height:15px;" aria-hidden="true"></i>
+                        <span>Tạo tài khoản</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feedback Alert Banner -->
+            <div id="users-alert" class="alert d-none mb-4" role="alert"></div>
+
+            <!-- 4 KPI Overview Cards -->
+            <section aria-label="Tổng quan tài khoản" class="row g-3 mb-4">
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="le-kpi-label">Tổng nhân sự nội bộ</span>
+                            <span class="le-btn-icon" style="width:28px;height:28px;min-height:28px;">
+                                <i data-lucide="users" style="width:14px;height:14px;" aria-hidden="true"></i>
+                            </span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="stat-total-users">--</div>
+                        <div class="le-kpi-sub">Bao gồm tất cả vai trò nội bộ</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="le-kpi-label">Đang hoạt động</span>
+                            <span class="le-badge le-badge-success">ACTIVE</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" style="color:var(--le-on-success-container);" id="stat-active-users">--</div>
+                        <div class="le-kpi-sub">Tài khoản được phép truy cập</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="le-kpi-label">Đội ngũ Shipper</span>
+                            <span class="le-badge le-badge-danger">Giao nhận</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" id="stat-shipper-users">--</div>
+                        <div class="le-kpi-sub">Tài xế lấy &amp; giao chặng cuối</div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-xl-3">
+                    <div class="le-kpi-card">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="le-kpi-label">Đã vô hiệu hóa</span>
+                            <span class="le-badge le-badge-neutral">DISABLED</span>
+                        </div>
+                        <div class="le-kpi-value le-tabular" style="color:var(--le-muted);" id="stat-disabled-users">--</div>
+                        <div class="le-kpi-sub">Đã thu hồi phiên đăng nhập</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Filter Bar + Staff Data Table -->
+            <section class="le-card">
+                <div class="p-3 p-lg-4 border-bottom">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-lg-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-muted">
+                                    <i data-lucide="search" style="width:15px;height:15px;" aria-hidden="true"></i>
+                                </span>
+                                <input type="text" id="filter-search" class="form-control border-start-0 ps-0"
+                                       placeholder="Tìm họ tên, username, email, SĐT, mã NV..." style="font-size:13px;">
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <select id="filter-role" class="form-select" style="font-size:13px;" aria-label="Lọc theo vai trò">
+                                <option value="">Tất cả vai trò</option>
+                                <option value="ROLE_ADMIN">Admin</option>
+                                <option value="ROLE_MANAGER">Quản lý</option>
+                                <option value="ROLE_DISPATCHER">Điều phối viên</option>
+                                <option value="ROLE_HUB_STAFF">NV kho vận</option>
+                                <option value="ROLE_SHIPPER">Shipper</option>
+                                <option value="ROLE_ACCOUNTANT">Kế toán</option>
+                                <option value="ROLE_CSKH">CSKH</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <select id="filter-hub" class="form-select" style="font-size:13px;" aria-label="Lọc theo Hub">
+                                <option value="">Tất cả Hub / Bưu cục</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <select id="filter-status" class="form-select" style="font-size:13px;" aria-label="Lọc theo trạng thái">
+                                <option value="">Mọi trạng thái</option>
+                                <option value="ACTIVE">Đang hoạt động</option>
+                                <option value="PENDING_VERIFICATION">Chờ xác thực</option>
+                                <option value="DISABLED">Vô hiệu hóa</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-lg-1 d-grid">
+                            <button type="button" id="btn-reset-filters" class="btn btn-outline-secondary btn-sm py-2" title="Xóa bộ lọc">
+                                <i data-lucide="rotate-ccw" style="width:14px;height:14px;" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table Body -->
+                <div class="table-responsive">
+                    <table class="table le-table">
+                        <thead>
+                            <tr>
+                                <th>Nhân sự</th>
+                                <th>Số điện thoại</th>
+                                <th>Vai trò</th>
+                                <th>Hub &amp; Phương tiện</th>
+                                <th>Trạng thái</th>
+                                <th>Đăng nhập gần nhất</th>
+                                <th class="text-end">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="staff-table-body">
+                            <tr>
+                                <td colspan="7" class="p-4">
+                                    <div class="d-flex flex-column gap-2">
+                                        <div class="le-skeleton" style="height:36px;width:100%;"></div>
+                                        <div class="le-skeleton" style="height:36px;width:100%;"></div>
+                                        <div class="le-skeleton" style="height:36px;width:100%;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="px-4 py-3 border-top d-flex justify-content-between align-items-center small text-muted">
+                    <span id="staff-count-caption">Đang tải danh sách...</span>
+                    <button type="button" id="btn-reload-users" class="btn btn-link btn-sm text-decoration-none p-0" style="color:var(--le-primary);">
+                        Tải lại
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal 1: Create / Edit Staff Account -->
+    <div class="modal fade" id="staffModal" tabindex="-1" aria-labelledby="staffModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content border-0" style="border-radius:var(--le-radius-lg);box-shadow:var(--le-shadow-modal);">
+                <div class="modal-header border-bottom px-4 py-3">
+                    <div>
+                        <h2 class="modal-title h5 fw-bold mb-0" id="staffModalTitle">Tạo tài khoản nhân sự</h2>
+                        <p class="small text-muted mb-0" id="staffModalSubtitle">Cấp tài khoản nội bộ và phân quyền theo vai trò</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <form id="staffForm" novalidate>
+                    <div class="modal-body p-4">
+                        <div id="staffFormError" class="alert alert-danger d-none py-2 small"></div>
+                        <input type="hidden" id="staff-id">
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="staff-username" class="form-label small fw-semibold">Tên đăng nhập <span class="text-danger">*</span></label>
+                                <input type="text" id="staff-username" class="form-control" placeholder="vd: shipper_04" required>
+                                <div class="form-text">3-50 ký tự chữ thường, số, dấu chấm hoặc gạch dưới.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="staff-email" class="form-label small fw-semibold">Email <span class="text-danger">*</span></label>
+                                <input type="email" id="staff-email" class="form-control" placeholder="vd: shipper04@uteexpress.vn" required>
+                            </div>
+
+                            <div class="col-md-6" id="staff-password-group">
+                                <label for="staff-password" class="form-label small fw-semibold">Mật khẩu khởi tạo <span class="text-danger">*</span></label>
+                                <input type="password" id="staff-password" class="form-control" placeholder="Tối thiểu 6 ký tự" minlength="6">
+                                <div class="form-text">Nhân sự sẽ được yêu cầu đổi mật khẩu lần đầu đăng nhập.</div>
+                            </div>
+                            <div class="col-md-6 d-none" id="staff-status-group">
+                                <label for="staff-status" class="form-label small fw-semibold">Trạng thái tài khoản</label>
+                                <select id="staff-status" class="form-select">
+                                    <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
+                                    <option value="PENDING_VERIFICATION">Chờ xác thực (PENDING_VERIFICATION)</option>
+                                    <option value="DISABLED">Vô hiệu hóa (DISABLED)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="staff-fullname" class="form-label small fw-semibold">Họ và tên <span class="text-danger">*</span></label>
+                                <input type="text" id="staff-fullname" class="form-control" placeholder="vd: Nguyễn Văn An" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="staff-phone" class="form-label small fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
+                                <input type="tel" id="staff-phone" class="form-control" placeholder="vd: 0901234567" required>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold d-block">Vai trò nội bộ <span class="text-danger">*</span></label>
+                                <div class="d-flex flex-wrap gap-3 p-3 rounded border bg-light" id="staff-roles-container">
+                                    <div class="form-check">
+                                        <input class="form-check-input staff-role-cb" type="checkbox" value="ROLE_ADMIN" id="role-admin">
+                                        <label class="form-check-label small fw-medium" for="role-admin">Admin</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input staff-role-cb" type="checkbox" value="ROLE_MANAGER" id="role-manager">
+                                        <label class="form-check-label small fw-medium" for="role-manager">Quản lý</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input staff-role-cb" type="checkbox" value="ROLE_DISPATCHER" id="role-dispatcher">
+                                        <label class="form-check-label small fw-medium" for="role-dispatcher">Điều phối viên</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input staff-role-cb" type="checkbox" value="ROLE_HUB_STAFF" id="role-hub-staff">
+                                        <label class="form-check-label small fw-medium" for="role-hub-staff">NV kho vận</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input staff-role-cb" type="checkbox" value="ROLE_SHIPPER" id="role-shipper">
+                                        <label class="form-check-label small fw-medium" for="role-shipper">Shipper</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input staff-role-cb" type="checkbox" value="ROLE_ACCOUNTANT" id="role-accountant">
+                                        <label class="form-check-label small fw-medium" for="role-accountant">Kế toán</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input staff-role-cb" type="checkbox" value="ROLE_CSKH" id="role-cskh">
+                                        <label class="form-check-label small fw-medium" for="role-cskh">CSKH</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Optional Staff Profile Section -->
+                            <div class="col-12 mt-3 pt-3 border-top">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="toggle-staff-profile">
+                                    <label class="form-check-label small fw-bold" for="toggle-staff-profile">
+                                        Gán hồ sơ Hub &amp; phương tiện (bắt buộc cho Shipper / NV Hub)
+                                    </label>
+                                </div>
+                                <div id="staff-profile-fields" class="row g-3 d-none mt-1">
+                                    <div class="col-md-6">
+                                        <label for="sp-hub-id" class="form-label small fw-semibold">Hub trực thuộc <span class="text-danger">*</span></label>
+                                        <select id="sp-hub-id" class="form-select"></select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="sp-employee-code" class="form-label small fw-semibold">Mã nhân viên <span class="text-danger">*</span></label>
+                                        <input type="text" id="sp-employee-code" class="form-control" placeholder="vd: NV-HCM-01" maxlength="20">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="sp-vehicle-plate" class="form-label small fw-semibold">Biển số xe</label>
+                                        <input type="text" id="sp-vehicle-plate" class="form-control" placeholder="vd: 59X1-123.45" maxlength="20">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="sp-max-capacity" class="form-label small fw-semibold">Tải trọng tối đa (gram)</label>
+                                        <input type="number" id="sp-max-capacity" class="form-control" value="50000" min="1">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="sp-max-orders" class="form-label small fw-semibold">Số đơn tối đa / ca</label>
+                                        <input type="number" id="sp-max-orders" class="form-control" value="35" min="1">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top px-4 py-3">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" id="btn-submit-staff" class="le-btn le-btn-primary">Lưu tài khoản</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Dedicated Staff Profile (Hub & Vehicle) Modal -->
+    <div class="modal fade" id="profileOnlyModal" tabindex="-1" aria-labelledby="profileOnlyTitle" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content border-0" style="border-radius:var(--le-radius-lg);box-shadow:var(--le-shadow-modal);">
+                <div class="modal-header border-bottom px-4 py-3">
+                    <div>
+                        <h2 class="modal-title h5 fw-bold mb-0" id="profileOnlyTitle">Cấu hình Hub &amp; Phương tiện</h2>
+                        <p class="small text-muted mb-0" id="profileOnlyUserLabel"></p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <form id="profileOnlyForm" novalidate>
+                    <div class="modal-body p-4">
+                        <div id="profileOnlyError" class="alert alert-danger d-none py-2 small"></div>
+                        <input type="hidden" id="po-user-id">
+                        <div class="mb-3">
+                            <label for="po-hub-id" class="form-label small fw-semibold">Hub trực thuộc <span class="text-danger">*</span></label>
+                            <select id="po-hub-id" class="form-select" required></select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="po-employee-code" class="form-label small fw-semibold">Mã nhân viên <span class="text-danger">*</span></label>
+                            <input type="text" id="po-employee-code" class="form-control" maxlength="20" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="po-vehicle-plate" class="form-label small fw-semibold">Biển số xe</label>
+                            <input type="text" id="po-vehicle-plate" class="form-control" maxlength="20" placeholder="vd: 59X1-123.45">
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <label for="po-max-capacity" class="form-label small fw-semibold">Tải trọng (gram)</label>
+                                <input type="number" id="po-max-capacity" class="form-control" min="1" value="50000">
+                            </div>
+                            <div class="col-6">
+                                <label for="po-max-orders" class="form-label small fw-semibold">Đơn tối đa / ca</label>
+                                <input type="number" id="po-max-orders" class="form-control" min="1" value="35">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top px-4 py-3">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" id="btn-submit-profile-only" class="le-btn le-btn-primary">Cập nhật hồ sơ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Confirm Disable Staff -->
+    <div class="modal fade" id="disableStaffModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0" style="border-radius:var(--le-radius-lg);box-shadow:var(--le-shadow-modal);">
+                <div class="modal-body p-4 text-center">
+                    <div class="d-inline-grid rounded-circle mb-3"
+                         style="width:48px;height:48px;background:var(--le-rose);color:var(--le-primary);place-items:center;">
+                        <i data-lucide="user-x" style="width:22px;height:22px;" aria-hidden="true"></i>
+                    </div>
+                    <h3 class="h6 fw-bold mb-2">Vô hiệu hóa tài khoản?</h3>
+                    <p class="small text-muted mb-4">
+                        Tài khoản <strong id="disable-staff-name"></strong> sẽ bị khóa và thu hồi toàn bộ phiên đăng nhập ngay lập tức.
+                    </p>
+                    <input type="hidden" id="disable-staff-id">
+                    <div class="d-flex justify-content-center gap-2">
+                        <button type="button" class="le-btn le-btn-tertiary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="button" id="btn-confirm-disable" class="le-btn le-btn-primary">Xác nhận khóa</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="extraScripts">
+    <script th:src="@{/js/ops/ops-common.js}"></script>
+    <script th:src="@{/js/ops/users.js}"></script>
+</th:block>
+</html>
