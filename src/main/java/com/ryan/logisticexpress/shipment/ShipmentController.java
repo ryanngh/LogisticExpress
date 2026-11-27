@@ -3,6 +3,7 @@ package com.ryan.logisticexpress.shipment;
 import com.ryan.logisticexpress.security.CustomUserDetails;
 import com.ryan.logisticexpress.shipment.dto.*;
 import com.ryan.logisticexpress.shipment.dto.PickupIntakeDtos.*;
+import com.ryan.logisticexpress.shipment.dto.ShopActionDtos.*;
 import com.ryan.logisticexpress.shipment.enums.ShipmentStatus;
 import com.ryan.logisticexpress.shipment.service.ShipmentService;
 import jakarta.validation.Valid;
@@ -89,6 +90,16 @@ public class ShipmentController {
     ) {
         String reason = (body != null && body.containsKey("reason")) ? body.get("reason") : "Cancelled by sender";
         return ResponseEntity.ok(shipmentService.cancelShipment(id, reason, user.getId(), false));
+    }
+
+    @PostMapping("/api/shop/shipments/{id}/requests")
+    @PreAuthorize("hasRole('SHOP')")
+    public ResponseEntity<ShipmentResponse> handleShopAction(
+            @PathVariable UUID id,
+            @Valid @RequestBody ShopShipmentActionRequest request,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        return ResponseEntity.ok(shipmentService.handleShopAction(id, request, user.getId()));
     }
 
     @GetMapping("/api/ops/shipments")

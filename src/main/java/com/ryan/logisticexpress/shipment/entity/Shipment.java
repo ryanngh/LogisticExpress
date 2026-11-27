@@ -250,6 +250,15 @@ public class Shipment {
         this.currentHub = hub;
     }
 
+    public void updateCodAmount(BigDecimal codAmount, BigDecimal amountToCollect) {
+        this.codAmount = codAmount;
+        this.amountToCollect = amountToCollect;
+    }
+
+    public void applyReturnFee(BigDecimal returnFee) {
+        this.returnFee = returnFee;
+    }
+
     public void applyReweigh(
             Integer actualWeightGram,
             Integer lengthCm,

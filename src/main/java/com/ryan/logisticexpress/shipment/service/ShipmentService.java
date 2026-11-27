@@ -15,6 +15,7 @@ import com.ryan.logisticexpress.pricing.enums.ZoneType;
 import com.ryan.logisticexpress.pricing.service.PricingEngineService;
 import com.ryan.logisticexpress.shipment.dto.*;
 import com.ryan.logisticexpress.shipment.dto.PickupIntakeDtos.*;
+import com.ryan.logisticexpress.shipment.dto.ShopActionDtos.*;
 import com.ryan.logisticexpress.shipment.entity.Shipment;
 import com.ryan.logisticexpress.shipment.entity.TrackingEvent;
 import com.ryan.logisticexpress.shipment.enums.FailureReasonCode;
@@ -37,14 +38,18 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -55,6 +60,20 @@ public class ShipmentService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DATE_PREFIX_FORMAT = DateTimeFormatter.ofPattern("yyMMdd");
+    private static final Set<ShipmentStatus> COD_ADJUSTABLE_STATUSES = EnumSet.of(
+            ShipmentStatus.CREATED,
+            ShipmentStatus.PICKUP_ASSIGNED,
+            ShipmentStatus.PICKED_UP,
+            ShipmentStatus.AT_ORIGIN_HUB,
+            ShipmentStatus.IN_LINEHAUL,
+            ShipmentStatus.AT_DEST_HUB
+    );
+    // ponytail: [NEEDS_CONFIRMATION] early shop return permitted from AT_DEST_HUB and DELIVERY_FAILED in addition to ON_HOLD_FOR_RETURN; tighten or expand when return policy is finalized
+    private static final Set<ShipmentStatus> SHOP_RETURNABLE_STATUSES = EnumSet.of(
+            ShipmentStatus.ON_HOLD_FOR_RETURN,
+            ShipmentStatus.AT_DEST_HUB,
+            ShipmentStatus.DELIVERY_FAILED
+    );
 
     private final ShipmentRepository shipmentRepository;
     private final TrackingEventRepository trackingEventRepository;
@@ -245,9 +264,20 @@ public class ShipmentService {
     }
 
     @Transactional
+    public Shipment getShipmentForUpdateOrThrow(UUID id) {
+        return shipmentRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ShipmentNotFoundException(id.toString()));
+    }
+
+    @Transactional
     public Shipment getShipmentByTrackingCodeForUpdateOrThrow(String trackingCode) {
         return shipmentRepository.findByTrackingCodeForUpdate(trackingCode.trim().toUpperCase())
                 .orElseThrow(() -> new ShipmentNotFoundException(trackingCode));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Shipment> findShipmentsByDeliveryShipperAndStatuses(UUID shipperId, Collection<ShipmentStatus> statuses) {
+        return shipmentRepository.findByAssignedDeliveryShipperIdAndCurrentStatusIn(shipperId, statuses);
     }
 
     @Transactional(readOnly = true)
@@ -585,6 +615,216 @@ public class ShipmentService {
                 oldAmountToCollect,
                 newAmountToCollect
         );
+    }
+
+    @Transactional
+    public ShipmentResponse handleShopAction(UUID shipmentId, ShopShipmentActionRequest request, UUID shopUserId) {
+        Shipment shipment = getShipmentOrThrow(shipmentId);
+        if (!shipment.getShop().getId().equals(shopUserId)) {
+            throw new ForbiddenException("ACCESS_DENIED", "You do not own this shipment");
+        }
+        User shop = userService.getUserEntityById(shopUserId);
+        String reason = hasText(request.reason()) ? request.reason().trim() : null;
+
+        return switch (request.actionType()) {
+            case REDELIVER -> requestShopRedelivery(shipment, shop, reason);
+            case RETURN -> requestShopReturn(shipment, shop, reason);
+            case ADJUST_COD -> adjustShopCod(shipment, shop, request.newCodAmount(), reason);
+        };
+    }
+
+    private ShipmentResponse requestShopRedelivery(Shipment shipment, User shop, String reason) {
+        ShipmentStatus status = shipment.getCurrentStatus();
+        boolean validStatus = status == ShipmentStatus.DELIVERY_FAILED
+                || (status == ShipmentStatus.AT_DEST_HUB && shipment.getAttemptCount() > 0);
+        if (!validStatus || shipment.getAttemptCount() >= ShipmentStateMachine.MAX_DELIVERY_ATTEMPTS) {
+            throw new InvalidShipmentStateTransitionException(
+                    "Redelivery request requires failed delivery with attempts below " + ShipmentStateMachine.MAX_DELIVERY_ATTEMPTS);
+        }
+
+        String note = reason != null ? "Shop requested redelivery: " + reason : "Shop requested redelivery";
+        trackingEventRepository.save(TrackingEvent.builder()
+                .shipment(shipment)
+                .status(status)
+                .actor(shop)
+                .hub(shipment.getCurrentHub())
+                .reasonCode("SHOP_REDELIVERY_REQUESTED")
+                .note(note)
+                .occurredAt(Instant.now())
+                .build());
+        return ShipmentResponse.from(shipment);
+    }
+
+    private ShipmentResponse requestShopReturn(Shipment shipment, User shop, String reason) {
+        if (!SHOP_RETURNABLE_STATUSES.contains(shipment.getCurrentStatus())) {
+            throw new InvalidShipmentStateTransitionException(shipment.getCurrentStatus(), ShipmentStatus.RETURN_INITIATED);
+        }
+        String note = reason != null ? "Shop requested return: " + reason : "Shop requested return";
+        Shipment updated = shipmentStateMachine.validateAndTransition(
+                shipment,
+                ShipmentStatus.RETURN_INITIATED,
+                shop,
+                "SHOP_RETURN_REQUESTED",
+                note,
+                shipment.getCurrentHub(),
+                null,
+                null
+        );
+        return ShipmentResponse.from(updated);
+    }
+
+    private ShipmentResponse adjustShopCod(Shipment shipment, User shop, BigDecimal newCodAmount, String reason) {
+        if (!COD_ADJUSTABLE_STATUSES.contains(shipment.getCurrentStatus())) {
+            throw new InvalidShipmentStateTransitionException(
+                    "COD adjustment is not allowed in status " + shipment.getCurrentStatus());
+        }
+        if (newCodAmount == null || newCodAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("INVALID_COD_AMOUNT", "New COD amount must be non-negative");
+        }
+
+        BigDecimal oldCod = shipment.getCodAmount();
+        BigDecimal normalizedCod = newCodAmount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal newAmountToCollect = pricingEngineService.calculateAmountToCollect(
+                normalizedCod,
+                shipment.getShippingFee(),
+                shipment.getFeePayer()
+        );
+        shipment.updateCodAmount(normalizedCod, newAmountToCollect);
+        Shipment saved = shipmentRepository.save(shipment);
+
+        String baseNote = String.format("Shop adjusted COD: %s -> %s (amountToCollect: %s)",
+                oldCod, normalizedCod, newAmountToCollect);
+        String note = reason != null ? baseNote + " | " + reason : baseNote;
+        trackingEventRepository.save(TrackingEvent.builder()
+                .shipment(saved)
+                .status(saved.getCurrentStatus())
+                .actor(shop)
+                .hub(saved.getCurrentHub())
+                .reasonCode("COD_ADJUSTED")
+                .note(note)
+                .occurredAt(Instant.now())
+                .build());
+        return ShipmentResponse.from(saved);
+    }
+
+    @Transactional
+    public ShipmentResponse initiateReturn(UUID shipmentId, String reason, UUID actorUserId) {
+        Shipment shipment = getShipmentOrThrow(shipmentId);
+        if (shipment.getCurrentStatus() != ShipmentStatus.ON_HOLD_FOR_RETURN) {
+            throw new InvalidShipmentStateTransitionException(shipment.getCurrentStatus(), ShipmentStatus.RETURN_INITIATED);
+        }
+        User actor = userService.getUserEntityById(actorUserId);
+        Hub activeHub = shipment.getCurrentHub() != null ? shipment.getCurrentHub() : shipment.getDestHub();
+        assertHubAccess(actor, activeHub);
+
+        String note = hasText(reason) ? reason.trim() : "Return initiated";
+        Shipment updated = shipmentStateMachine.validateAndTransition(
+                shipment,
+                ShipmentStatus.RETURN_INITIATED,
+                actor,
+                "RETURN_INITIATED",
+                note,
+                activeHub,
+                null,
+                null
+        );
+        return ShipmentResponse.from(updated);
+    }
+
+    @Transactional
+    public ShipmentResponse advanceReturnTransit(UUID shipmentId, ReturnTransitRequest request, UUID actorUserId) {
+        Shipment shipment = getShipmentOrThrow(shipmentId);
+        if (shipment.getCurrentStatus() != ShipmentStatus.RETURN_INITIATED
+                && shipment.getCurrentStatus() != ShipmentStatus.IN_RETURN_TRANSIT) {
+            throw new InvalidShipmentStateTransitionException(shipment.getCurrentStatus(), ShipmentStatus.IN_RETURN_TRANSIT);
+        }
+
+        User actor = userService.getUserEntityById(actorUserId);
+        Hub targetHub = resolveReturnTransitHub(actor, request != null ? request.hubId() : null, shipment);
+        assertHubAccess(actor, targetHub);
+
+        if (targetHub != null) {
+            shipment.updateCurrentHub(targetHub);
+        }
+
+        if (request != null && request.shipperId() != null) {
+            User shipper = userService.getUserEntityById(request.shipperId());
+            if (!shipper.hasRole(Role.ROLE_SHIPPER) || shipper.getStatus() != Status.ACTIVE) {
+                throw new BadRequestException("INVALID_SHIPPER", "Assigned user must be an active shipper");
+            }
+            if (shipper.getStaffProfile() != null && targetHub != null
+                    && !targetHub.getId().equals(shipper.getStaffProfile().getHubId())) {
+                throw new BadRequestException("SHIPPER_HUB_MISMATCH", "Return shipper does not belong to active hub");
+            }
+            // ponytail: [NEEDS_CONFIRMATION] reuses assigned_delivery_shipper_id for return transit; add dedicated return shipper column via migration if separate history is needed
+            shipment.assignDeliveryShipper(shipper);
+        }
+
+        String note = (request != null && hasText(request.note()))
+                ? request.note().trim()
+                : (targetHub != null ? "Return in transit at hub " + targetHub.getCode() : "Return in transit");
+        Shipment updated = shipmentStateMachine.validateAndTransition(
+                shipment,
+                ShipmentStatus.IN_RETURN_TRANSIT,
+                actor,
+                "RETURN_TRANSIT",
+                note,
+                targetHub,
+                null,
+                null
+        );
+        return ShipmentResponse.from(updated);
+    }
+
+    @Transactional
+    public Shipment completeReturnEntity(UUID shipmentId, CompleteReturnRequest request, UUID actorUserId) {
+        Shipment shipment = getShipmentOrThrow(shipmentId);
+        if (shipment.getCurrentStatus() != ShipmentStatus.IN_RETURN_TRANSIT) {
+            throw new InvalidShipmentStateTransitionException(shipment.getCurrentStatus(), ShipmentStatus.RETURNED);
+        }
+
+        User actor = userService.getUserEntityById(actorUserId);
+        if (actor.hasRole(Role.ROLE_SHIPPER) && !actor.hasRole(Role.ROLE_ADMIN)) {
+            if (shipment.getAssignedDeliveryShipper() == null
+                    || !shipment.getAssignedDeliveryShipper().getId().equals(actorUserId)) {
+                throw new ForbiddenException("NOT_ASSIGNED_SHIPPER", "Shipment is not assigned to this shipper for return");
+            }
+        } else {
+            assertHubAccess(actor, shipment.getOriginHub());
+        }
+
+        BigDecimal returnFee = pricingEngineService.calculateReturnFee(
+                shipment.getBaseFee(),
+                shipment.getRateCard().getReturnFeeRatio()
+        );
+        shipment.applyReturnFee(returnFee);
+        if (shipment.getOriginHub() != null) {
+            shipment.updateCurrentHub(shipment.getOriginHub());
+        }
+
+        String note = (request != null && hasText(request.note()))
+                ? request.note().trim()
+                : "Returned to shop (return fee: " + returnFee + ")";
+        return shipmentStateMachine.validateAndTransition(
+                shipment,
+                ShipmentStatus.RETURNED,
+                actor,
+                "RETURNED",
+                note,
+                shipment.getOriginHub(),
+                request != null ? request.lat() : null,
+                request != null ? request.lng() : null
+        );
+    }
+
+    private Hub resolveReturnTransitHub(User actor, UUID requestedHubId, Shipment shipment) {
+        if (requestedHubId != null) {
+            return hubOperationService.getHubOrThrow(requestedHubId);
+        }
+        if (actor.getStaffProfile() != null && actor.getStaffProfile().getHubId() != null) {
+            return hubOperationService.getHubOrThrow(actor.getStaffProfile().getHubId());
+        }
+        return shipment.getCurrentHub() != null ? shipment.getCurrentHub() : shipment.getOriginHub();
     }
 
     private void assertHubAccess(User actor, Hub requiredHub) {

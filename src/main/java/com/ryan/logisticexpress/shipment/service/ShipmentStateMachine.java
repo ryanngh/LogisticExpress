@@ -76,6 +76,7 @@ public class ShipmentStateMachine {
                     ShipmentStatus.IN_RETURN_TRANSIT
             )),
             Map.entry(ShipmentStatus.IN_RETURN_TRANSIT, Set.of(
+                    ShipmentStatus.IN_RETURN_TRANSIT,
                     ShipmentStatus.RETURNED
             )),
             Map.entry(ShipmentStatus.DELIVERED, Set.of()),
